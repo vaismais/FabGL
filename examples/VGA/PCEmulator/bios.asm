@@ -30,10 +30,15 @@
 ;   - INT16 implemented function 0x92
 ;   - INT16 implemented function 0x09
 ;   - INT15 implemented function 0xc1
-;   - added Extended BIOS data
+;   - added Extended BIOS Data Area (EBDA)
 ;   - INT9, support for INT15,4F keyboard intercept
 ;   - removed internal variables from BIOS data area
 ;   - INT9, support for CTRL+ALT+DEL, PRINTSCREEN, CTRLBREAK, SYSREQ, PAUSE
+;   - INT15 implemented function 0xC2
+;   - implemented INT74 (pointing device)
+;   - INT8, implemented 24H rollover
+;   - rewritten INT1A from scratch, now fully implemented
+;   - INT15, implemented 0x80, 0x81, 0x82, 0x83, 0x85, 0x86 functions
 ;
 ;
 ;
@@ -41,25 +46,38 @@
 ; This work is licensed under the MIT License. See included LICENSE.TXT.
 
 
-cpu  8086
+cpu 8086
 
 
-; PIC 8259 interrupt controller stuff
-PIC8259_A00 equ 0x20 ; 8259 PORT
-PIC8259_A01 equ 0x21 ; 8259 PORT
+; PIC 8259A/B interrupt controllers stuff
+PIC8259A_A00 equ 0x20 ; 8259A PORT
+PIC8259A_A01 equ 0x21 ; 8259A PORT
+PIC8259B_A00 equ 0xa0 ; 8259B PORT
+PIC8259B_A01 equ 0xa1 ; 8259B PORT
 PIC8259_EOI equ 0x20 ; EOI (End Of Interrupt)
+
+; MC156818 stuff
+RTC_SEL equ 0x70
+RTC_REG equ 0x71
 
 ; memory size in K
 MEMSIZE equ 639
 
-; segment of Extended Data area
-EDASEG equ 0x9fc0
+; Extended BIOS Data Area (EBDA) stuff
+EBDA_SEG           equ 0x9fc0   ; segment of Extended BIOS Data Area (EBDA) - must match with same value in bios.h
+EBDA_DRIVER_OFFSET equ 0x22     ; Pointing device device driver far call offset
+EBDA_DRIVER_SEG    equ 0x24     ; Pointing device device driver far call segment
+EBDA_FLAGS1        equ 0x26     ; Flags 1
+EBDA_FLAGS2        equ 0x27     ; Flags 2
+EBDA_PACKET        equ 0x28     ; Start of packet
+
 
 ; model and submodel
 ; fc/01 = generic AT
 MODEL    equ 0xfc
 SUBMODEL equ 0x01
 BIOSREV  equ 0x00
+
 
 ; emulator macros
 ; These macros allows BIOS to call helper functions implemented in the emulator side.
@@ -72,10 +90,6 @@ BIOSREV  equ 0x00
 
 %macro  emu_write_disk 0
   int 0xf2
-%endmacro
-
-%macro  emu_get_rtc 0
-  int 0xf3
 %endmacro
 
 %macro  emu_putchar_al 0
@@ -334,8 +348,8 @@ boot:
   mov  cx, 16
   rep  movsb
 
-; copy Extended BIOS data
-  mov ax, EDASEG
+; copy Extended BIOS Data Area (EBDA)
+  mov ax, EBDA_SEG
   mov  es, ax
   mov  di, 0x0000
   mov  ax, cs
@@ -343,7 +357,6 @@ boot:
   mov  si, eda
   mov  cx, 1024
   rep  movsb
-
 
 ; Add BIOS redirects for 100% compatible vectors
   mov  ax, cs
@@ -353,7 +366,6 @@ boot:
   mov  si, int09_redirect_start
   mov  cx, (int09_redirect_end - int09_redirect_start)
   rep  movsb
-
 
 ; Set initial CRTC register values and CGA registers for 80x25 colour mode
   mov  si, 0
@@ -368,7 +380,6 @@ init_crtc_loop:
   inc  si
   cmp  si, 16
   jl  init_crtc_loop
-
 
   mov  dx, 0x3DA  ; CGA status port
   mov  al, 0
@@ -399,18 +410,37 @@ init_crtc_loop:
   mov  al, 0
   out  dx, al
 
-
-;  Initialize the 8259 interrupt controller
+; Initialize the 8259A interrupt controller
 
   mov  al, 0x13          ; ICW1 - EDGE, SNGL, ICW4
-  out  PIC8259_A00, al
-  mov  al, 8             ; setup ICW2 - INT TYPE 8 (8-F)
-  out  PIC8259_A01, al
+  out  PIC8259A_A00, al
+  mov  al, 8             ; setup ICW2 - (08h-0Fh)
+  out  PIC8259A_A01, al
   mov  al, 9             ; setup ICW4 - BUFFRD, 8086 MODE
-  out  PIC8259_A01, al
+  out  PIC8259A_A01, al
   mov  al, 0x00          ; enable all interrupts
-  out  PIC8259_A01, al    ;
+  out  PIC8259A_A01, al
 
+; Initialize the 8259B interrupt controller
+
+  mov  al, 0x13          ; ICW1 - EDGE, SNGL, ICW4
+  out  PIC8259B_A00, al
+  mov  al, 0x70          ; setup ICW2 - (70h-77h)
+  out  PIC8259B_A01, al
+  mov  al, 9             ; setup ICW4 - BUFFRD, 8086 MODE
+  out  PIC8259B_A01, al
+  mov  al, 0x00          ; enable all interrupts
+  out  PIC8259B_A01, al
+
+; Initialize RTC
+
+  mov  al, 0x0b
+  out  RTC_SEL, al
+  mov  al, 0b00000010 ; just set h24 mode
+  out  RTC_REG, al
+  ; synchronize system tick with RTC
+  mov  ah, 0x07
+  emu_helper
 
 ; Enable interrupts
   sti
@@ -433,59 +463,67 @@ init_crtc_loop:
 
 
 
-reportEOI:
-; signal EOI (End Of Interrupt) to 8259
+reportEOIA:
+; signal EOI (End Of Interrupt) to 8259A
   mov   al, PIC8259_EOI
-  out   PIC8259_A00, al
+  out   PIC8259A_A00, al
+  ret
+
+
+reportEOIB:
+; signal EOI (End Of Interrupt) to 8259B
+  mov   al, PIC8259_EOI
+  out   PIC8259B_A00, al
   ret
 
 
 
-; ************************* INT 7h handler
+; ************************* INT 07h handler
 
 int7:
   iret
 
-; ************************* INT 8h handler - timer
+
+
+; ************************* INT 08h handler - timer
 
 int8:
-  ; timer interupt evert 1/18.2 seconds
+  ; timer interupt every 1/18.2 seconds
   push  ax
-  push  bx
-  push  dx
-  push  bp
-  push  es
-
-  push  cx
-  push  di
   push  ds
-  push  si
 
-  mov   bx, 0x40
-  mov   es, bx
+  mov   ax, 0x40
+  mov   ds, ax
 
-  add   word [es:0x6C], 1
-  adc   word [es:0x6E], 0
+  add   word [clk_dtimer_lo - bios_data], 1
+  adc   word [clk_dtimer_hi - bios_data], 0
+
+  ; does time count exceed 24 hours?
+  ; 60*60*24*18.2 = 0x17fe80
+  ; IBM-AT BIOS compares to 0x0018:0x00b0
+  cmp   word [clk_dtimer_hi - bios_data], 0x18
+  jnz   i8_end
+  cmp   word [clk_dtimer_lo - bios_data], 0xb0
+  jnz   i8_end
+
+  ; reset counter and set 24h rollover flag
+  xor   ax, ax
+  mov   [clk_dtimer_hi - bios_data], ax
+  mov   [clk_dtimer_lo - bios_data], ax
+  mov   byte [clk_rollover - bios_data], 1
 
 i8_end:
 
   ; transfer control to user routine
   int   0x1c
 
-  call  reportEOI
+  call  reportEOIA
 
-  pop   si
   pop   ds
-  pop   di
-  pop   cx
-
-  pop   es
-  pop   bp
-  pop   dx
-  pop   bx
   pop   ax
 
   iret
+
 
 
 ; ************************* INT 09h handler - keyboard data ready
@@ -509,7 +547,7 @@ int9_getcode:
   stc
   mov  ah, 0x4f
   int  0x15
-  jnc  int9_exit  ; keystroke absorbed by INT 15
+  jnc  int9_exit  ; CF=0, keystroke absorbed by INT 15
 
   ; emulator does the actual job (convert to ASCII and insert into the keyboard buffer)
   mov  ah, 0x00
@@ -530,16 +568,17 @@ int9_getcode:
   jnz int9_pause
 
 int9_exit:
-  call reportEOI
+  call reportEOIA
   pop  ds
   pop  ax
   iret
 
 ; manage CTRL + ALT + DEL
 int9_reboot:
-  call reportEOI
-  mov  word [soft_rst_flg - bios_data], 0x1234
-  jmp  boot
+  call reportEOIA
+  ; reset using 8042 keyboard controller
+  mov al, 0xfe
+  out 0x64, al
 
 ; manage PAUSE state
 int9_pause:
@@ -2488,17 +2527,23 @@ int10_get_state_info_pages_done:
   mov  al, 0x1b
   iret
 
+
+
 ; ************************* INT 11h - get equipment list
 
 int11:
   mov  ax, [cs:equip]
   iret
 
+
+
 ; ************************* INT 12h - return memory size
 
 int12:
   mov   ax, [cs:memsize]
   iret
+
+
 
 ; ************************* INT 13h handler - disk services
 
@@ -2870,6 +2915,8 @@ int13_diskchange:
   mov  ah, 0 ; Disk not changed
   jmp  reach_stack_clc
 
+
+
 ; ************************* INT 14h - serial port functions
 
 ; baud rate divisors
@@ -3173,61 +3220,186 @@ int14_get_port_status:
 
 
 
-; ************************* INT 15h - get system configuration
+; ************************* INT 15h - System Services
 
 int15:
 
+  cmp  ah, 0x80
+  je   int15_80   ; Device Open
+  cmp  ah, 0x81
+  je   int15_81   ; Device Close
+  cmp  ah, 0x82
+  je   int15_82   ; Program Termination
+  cmp  ah, 0x83
+  je   int15_83   ; Set Event Wait Interval
+  cmp  ah, 0x85
+  je   int15_85   ; System Request Key
+  cmp  ah, 0x86
+  je   int15_86   ; Wait
   cmp  ah, 0xc0
-  je   int15_sysconfig
+  je   int15_c0
   cmp  ah, 0xc1
   je   int15_c1
-  ; cmp  ah, 0x41
-  ; je  int15_waitevent
-  ; cmp  ah, 0x4f
-  ; je  int15_intercept
-  ; cmp  ah, 0x88
-  ; je  int15_getextmem
+  cmp  ah, 0xc2
+  je   int15_c2
 
-; Otherwise, function not supported
-
+; function not supported
   mov  ah, 0x86
-
   jmp  reach_stack_stc
 
-int15_sysconfig: ; Return address of system configuration table in ROM
 
-   mov  bx, cs
-   mov  es, bx
-   mov  bx, confDataTable
-   mov  ah, 0
+; Device Open
+int15_80:
+; Device Close
+int15_81:
+; Program Termination
+int15_82:
+; System Request Key
+int15_85:
+  mov  ah, 0x00
+  jmp  reach_stack_clc
 
-   jmp  reach_stack_clc
+
+; Set Event Wait Interval
+int15_83:
+
+  push ds
+
+  ; load DS with bios data
+  push ax
+  mov  ax, 0x0040
+  mov  ds, ax
+  pop  ax
+
+  ; cancel set interval?
+  cmp  al, 0x01
+  je   int15_83_cancel   ; yes, jump to service routine
+
+  ; check if wait already in progress
+  test byte [wait_active_flag - bios_data], 0x01
+  jnz  int15_83_err
+
+  ; setup count
+  mov  [wait_count_lo - bios_data], dx           ; microseconds low byte
+  mov  [wait_count_hi - bios_data], cx           ; microseconds high byte
+  mov  [usr_waitflag_off - bios_data], bx        ; offset of user flag byte
+  mov  [usr_waitfalg_seg - bios_data], es        ; segment of user flag byte
+  mov  byte [wait_active_flag - bios_data], 0x01 ; wait active flag
+
+  ; setup RTC periodic interrupt
+  mov  al, 0x0a     ; select register A
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  and  al, 0xf0
+  or   al, 0b0110   ; rate = 1024Khz (976.562us)
+  out  RTC_REG, al
+  mov  al, 0x0b     ; select register B
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  or   al, 0x40     ; set PIE
+  out  RTC_REG, al
+
+  ; success
+  pop  ds
+  mov  ah, 0x00
+  jmp  reach_stack_clc
+
+; int 15, 83, subfunction 01 (cancel set event)
+int15_83_cancel:
+  ; clear PIE
+  mov  al, 0x0b      ; select register B
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  and  al, 0xbf
+  out  RTC_REG, al
+  ; clear wait_active_flag
+  mov  byte [wait_active_flag - bios_data], 0x00
+  ; success
+  pop  ds
+  mov  ah, 0x00
+  jmp  reach_stack_clc
+
+; wait already in progress
+int15_83_err:
+  pop  ds
+  mov  ah, 0x00
+  mov  al, 0x00
+  jmp  reach_stack_stc
+
+
+; Wait
+int15_86:
+  push ds
+  push ax
+
+  ; load DS with bios data
+  mov  ax, 0x0040
+  mov  ds, ax
+
+  ; other wait already active?
+  test byte [wait_active_flag - bios_data], 0x01
+  jnz  int15_86_err     ; yes, error
+
+  ; setup fields
+  mov  word [usr_waitflag_off - bios_data], wait_active_flag - bios_data
+  mov  word [usr_waitfalg_seg - bios_data], ds
+  mov  word [wait_count_lo - bios_data], dx
+  mov  word [wait_count_hi - bios_data], cx
+  mov  byte [wait_active_flag - bios_data], 0x01
+
+  ; setup RTC periodic interrupt
+  mov  al, 0x0a     ; select register A
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  and  al, 0xf0
+  or   al, 0b0110   ; rate = 1024Khz (976.562us)
+  out  RTC_REG, al
+  mov  al, 0x0b     ; select register B
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  or   al, 0x40     ; set PIE
+  out  RTC_REG, al
+
+  ; and wait...
+  sti
+int15_86_wait:
+  test byte [wait_active_flag - bios_data], 0x80
+  jz   int15_86_wait
+  mov  byte [wait_active_flag - bios_data], 0x00
+  pop  ax
+  pop  ds
+  jmp  reach_stack_clc
+
+int15_86_err:
+  pop  ax
+  pop  ds
+  jmp  reach_stack_stc
+
+
+; Return address of system configuration table in ROM
+int15_c0:
+  mov  bx, cs
+  mov  es, bx
+  mov  bx, confDataTable
+  mov  ah, 0
+  jmp  reach_stack_clc
+
 
 ; RETURN EXTENDED-BIOS DATA-AREA SEGMENT ADDRESS
 int15_c1:
   push ax
-  mov  ax, EDASEG
+  mov  ax, EBDA_SEG
   mov  es, ax
   pop  ax
   jmp  reach_stack_clc
 
 
-;  int15_waitevent: ; Events not supported
-;
-;  mov  ah, 0x86
-;
-;  jmp  reach_stack_stc
-;
-;  int15_intercept: ; Keyboard intercept
-;
-;  jmp  reach_stack_stc
-;
-;  int15_getextmem: ; Extended memory not supported
-;
-;  mov  ah,0x86
-;
-;  jmp  reach_stack_stc
-
+; Pointing device interface
+int15_c2:
+  mov ah, 0x06  ; helper for Pointing device interface
+  emu_helper
+  emu_iret_replace_CF
+  iret
 
 
 ; return from INT setting AH and CF for "unsupported BIOS function"
@@ -3420,177 +3592,257 @@ int17_initprint:
   mov  ah, 0
   iret
 
+
+
 ; ************************* INT 19h = reboot
 
 int19:
   jmp  boot
 
-; ************************* INT 1Ah - clock
+
+
+; ************************* INT 1Ah - System-Timer and Real-Time Clock Services
 
 int1a:
-  cmp  ah, 0
-  je   int1a_getsystime ; Get ticks since midnight (used for RTC time)
-  cmp  ah, 2
-  je   int1a_gettime ; Get RTC time (not actually used by DOS)
-  cmp  ah, 4
-  je   int1a_getdate ; Get RTC date
-  cmp  ah, 0x0f
-  je   int1a_init    ; Initialise RTC
+  cmp   ah, 0x00
+  je    int1a_00  ; Read System Time Counter
+  cmp   ah, 0x01
+  je    int1a_01  ; Set System Time Counter
+  cmp   ah, 0x02
+  je    int1a_02  ; Read Real-Time Clock Time
+  cmp   ah, 0x03
+  je    int1a_03  ; Set Real-Time Clock Time
+  cmp   ah, 0x04
+  je    int1a_04  ; Read Real-Time Clock Date
+  cmp   ah, 0x05
+  je    int1a_05  ; Set Real-Time Clock Date
+  cmp   ah, 0x06
+  je    int1a_06  ; Set Real-Time Clock Alarm
+  cmp   ah, 0x07
+  je    int1a_07  ; Reset Real-Time Clock Alarm
 
+  ; unsupported function
+  stc
+  emu_iret_replace_CF
   iret
 
-int1a_getsystime:
+  ; success (AH = 0x00, CF = 0)
+int1a_success:
+  mov  ah, 0x00
+  clc
+  emu_iret_replace_CF
+  iret
 
-  push  ax
-  push  bx
-  push  ds
-  push  es
+  ; fail (AH = 0x00, AL = 0x00, CF = 1)
+int1a_fail:
+  xor ax, ax
+  stc
+  emu_iret_replace_CF
+  iret
 
-  push  cs
-  push  cs
-  pop   ds
-  pop   es
+; Read System Time Counter
+int1a_00:
+  push ds
+  mov  dx, 0x0040
+  mov  ds, dx
+  mov  ah, 0x00                         ; AH = 0x00 (success)
+  mov  al, [clk_rollover - bios_data]   ; AL = rollover flag
+  mov  [clk_rollover - bios_data], ah   ; reset rollover flag
+  mov  cx, [clk_dtimer_hi - bios_data]  ; CX = ticks high word
+  mov  dx, [clk_dtimer_lo - bios_data]  ; DX = ticks low word
+  pop  ds
+  iret
 
-  mov   bx, timetable
 
-  emu_get_rtc
-
-  mov  ax, 182  ; Clock ticks in 10 seconds
-  mul  word [tm_msec]
-  mov  bx, 10000
-  div  bx ; AX now contains clock ticks in milliseconds counter
-  mov  [tm_msec], ax
-
-  mov  ax, 182  ; Clock ticks in 10 seconds
-  mul  word [tm_sec]
-  mov  bx, 10
-  mov  dx, 0
-  div  bx ; AX now contains clock ticks in seconds counter
-  mov  [tm_sec], ax
-
-  mov  ax, 1092 ; Clock ticks in a minute
-  mul  word [tm_min] ; AX now contains clock ticks in minutes counter
-  mov  [tm_min], ax
-
-  mov  ax, 65520 ; Clock ticks in an hour
-  mul  word [tm_hour] ; DX:AX now contains clock ticks in hours counter
-
-  add  ax, [tm_msec] ; Add milliseconds in to AX
-  adc  dx, 0 ; Carry into DX if necessary
-  add  ax, [tm_sec] ; Add seconds in to AX
-  adc  dx, 0 ; Carry into DX if necessary
-  add  ax, [tm_min] ; Add minutes in to AX
-  adc  dx, 0 ; Carry into DX if necessary
-
+; Set System Time Counter
+int1a_01:
+  push ds
   push dx
-  push ax
+  mov  dx, 0x0040
+  mov  ds, dx
   pop  dx
-  pop  cx
-
-  pop  es
+  mov  ah, 0x00                         ; AH = 0x00 (success)
+  mov  [clk_rollover - bios_data],  ah  ; reset rollover flag
+  mov  [clk_dtimer_hi - bios_data], cx  ; ticks high word = CX
+  mov  [clk_dtimer_lo - bios_data], dx  ; ticks low word  = DX
   pop  ds
-  pop  bx
-  pop  ax
-
-  mov  al, 0
   iret
 
-int1a_gettime:
 
-  ; Return the system time in BCD format. DOS doesn't use this, but we need to return
-  ; something or the system thinks there is no RTC.
+; Read Real-Time Clock Time
+; note: because emulation we never check that RTC is actually updating
+int1a_02:
+  ; DL = daylight
+  mov  al, 0x0b
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  and  al, 1
+  mov  dl, al
+  ; DH = seconds in BCD
+  mov  al, 0x00
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  mov  dh, al
+  ; CL = minutes in BCD
+  mov  al, 0x02
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  mov  cl, al
+  ; CH = AL = hours in BCD
+  mov  al, 0x04
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  mov  ch, al
+  ; exit
+  jmp int1a_success
 
-  push  ds
-  push  es
-  push  ax
-  push  bx
 
-  push  cs
-  push  cs
-  pop   ds
-  pop   es
+; Set Real-Time Clock Time
+; note: because emulation we never check that RTC is actually updating
+int1a_03:
+  ; set seconds in BCD (from DH)
+  mov  al, 0x00
+  out  RTC_SEL, al
+  mov  al, dh
+  out  RTC_REG, al
+  ; set minutes in BCD (from CL)
+  mov  al, 0x02
+  out  RTC_SEL, al
+  mov  al, cl
+  out  RTC_REG, al
+  ; set hours in BCD (from CH)
+  mov  al, 0x04
+  out  RTC_SEL, al
+  mov  al, ch
+  out  RTC_REG, al
+  ; set daylight (from DL)
+  mov  al, 0x0b
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  and  al, 0xfe
+  or   al, dl
+  or   al, 0x02     ; set 24h mode
+  out  RTC_REG, al  ; AL = Value written to CMOS RAM register OBh
+  ; exit
+  jmp int1a_success
 
-  mov   bx, timetable
 
-  emu_get_rtc
+; Read Real-Time Clock Date
+; note: because emulation we never check that RTC is actually updating
+int1a_04:
+  ; CL = year in BCD
+  mov  al, 0x09
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  mov  cl, al
+  ; DH = month in BCD
+  mov  al, 0x08
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  mov  dh, al
+  ; DL = day in BCD
+  mov  al, 0x07
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  mov  dl, al
+  ; CH = AL = century
+  mov  al, 0x32
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  mov  ch, al
+  ; exit
+  jmp int1a_success
 
-  mov  ax, 0
-  mov  cx, [tm_hour]
-  call hex_to_bcd
-  mov  bh, al    ; Hour in BCD is in BH
 
-  mov  ax, 0
-  mov  cx, [tm_min]
-  call hex_to_bcd
-  mov  bl, al    ; Minute in BCD is in BL
+; Set Real-Time Clock Date
+; note: because emulation we never check that RTC is actually updating
+int1a_05:
+  ; set century in BCD (from CH)
+  mov  al, 0x32
+  out  RTC_SEL, al
+  mov  al, ch
+  out  RTC_REG, al
+  ; set year in BCD (from CL)
+  mov  al, 0x09
+  out  RTC_SEL, al
+  mov  al, cl
+  out  RTC_REG, al
+  ; set month in BCD (from DH)
+  mov  al, 0x08
+  out  RTC_SEL, al
+  mov  al, dh
+  out  RTC_REG, al
+  ; set month in BCD (from DL)
+  mov  al, 0x07
+  out  RTC_SEL, al
+  mov  al, dl
+  out  RTC_REG, al
+  ; set 24h mode
+  mov  al, 0x0b
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  or   al, 0x02     ; set 24h mode
+  out  RTC_REG, al  ; AL = Value written to CMOS RAM register OBh
+  ; exit
+  jmp int1a_success
 
-  mov  ax, 0
-  mov  cx, [tm_sec]
-  call hex_to_bcd
-  mov  dh, al    ; Second in BCD is in DH
 
-  mov  dl, 0    ; Daylight saving flag = 0 always
+; Set Real-Time Clock Alarm
+; note: because emulation we never check that RTC is actually updating
+int1a_06:
+  ; alarm already in progress?
+  mov  al, 0x0b
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  test al, 0x20     ; AIE = 1?
+  jnz  int1a_fail   ; fail, alarm is already in progress
+  ; set seconds in BCD (from DH)
+  mov  al, 0x01
+  out  RTC_SEL, al
+  mov  al, dh
+  out  RTC_REG, al
+  ; set minutes in BCD (from CL)
+  mov  al, 0x03
+  out  RTC_SEL, al
+  mov  al, cl
+  out  RTC_REG, al
+  ; set hours in BCD (from CH)
+  mov  al, 0x05
+  out  RTC_SEL, al
+  mov  al, ch
+  out  RTC_REG, al
+  ; enable alarm interrupt (AIE)
+  mov  al, 0x0b
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  or   al, 0x20
+  out  RTC_REG, al
+  ; exit
+  mov  al, 0x00
+  jmp int1a_success
 
-  mov  cx, bx    ; Hour:minute now in CH:CL
 
-  pop  bx
-  pop  ax
-  pop  es
-  pop  ds
+; Reset Real-Time Clock Alarm
+; note: because emulation we never check that RTC is actually updating
+int1a_07:
+  ; disable alarm interrupt (AIE)
+  mov  al, 0x0b
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  and  al, 0xdf     ; reset AIE
+  out  RTC_REG, al
+  ; exit
+  jmp int1a_success
 
-  jmp  reach_stack_clc
 
-int1a_getdate:
-
-  ; Return the system date in BCD format.
-
-  push  ds
-  push  es
-  push  bx
-  push  ax
-
-  push  cs
-  push  cs
-  pop   ds
-  pop   es
-
-  mov   bx, timetable
-
-  emu_get_rtc
-
-  mov   ax, 0x1900
-  mov   cx, [tm_year]
-  call  hex_to_bcd
-  mov   cx, ax
-  push  cx
-
-  mov   ax, 1
-  mov   cx, [tm_mon]
-  call  hex_to_bcd
-  mov   dh, al
-
-  mov   ax, 0
-  mov   cx, [tm_mday]
-  call  hex_to_bcd
-  mov   dl, al
-
-  pop  cx
-  pop  ax
-  pop  bx
-  pop  es
-  pop  ds
-
-  jmp  reach_stack_clc
-
-int1a_init:
-
-  jmp  reach_stack_clc
 
 ; ************************* INT 1Ch - the other timer interrupt
 
 int1c:
 
   iret
+
+
 
 ; ************************* INT 1Eh - diskette parameter table
 
@@ -3607,6 +3859,8 @@ int1e_spt  db 18  ; 18 sectors per track (1.44MB)
     db 0xF6 ; Format filler byte
     db 0x0F ; Head settle time (1 ms)
     db 0x08 ; Motor start time in 1/8 seconds
+
+
 
 ; ************************* INT 41h - hard disk parameter table
 
@@ -3625,27 +3879,31 @@ int41_max_heads  db 0
 int41_max_sect  db 0
     db 0
 
+
+
 ; ************************* ROM configuration table
 
-rom_config  dw 16    ; 16 bytes following
-    db MODEL    ; Model         // Generic AT system
-    db SUBMODEL  ; Submodel
-    db BIOSREV  ; BIOS revision
-    ; feature 1:
-    ;   bit 2 : extended BIOS area allocated
-    ;   bit 4 : Keyboard intercept sequence (INT 15H) called in keyboard interrupt (INT 09H)
-    ;   bit 5 : real time clock installed
-    db 0b00110100
-    ; feature 2:
-    ;   bit 6 : INT 16/AH=09h (keyboard functionality) supported
-    db 0b01000000
-    db 0b00000000   ; Feature 3
-    db 0b00000000   ; Feature 4
-    db 0b00000000   ; Feature 5
-    db 0, 0, 0, 0, 0, 0
+rom_config  dw 16          ; 16 bytes following
+            db MODEL       ; Model - Generic AT system
+            db SUBMODEL    ; Submodel
+            db BIOSREV     ; BIOS revision
+            ; feature 1:
+            ;   bit 2 : extended BIOS area allocated
+            ;   bit 4 : Keyboard intercept sequence (INT 15H) called in keyboard interrupt (INT 09H)
+            ;   bit 5 : real time clock installed
+            ;   bit 6 : second 8259 installed
+            db 0b01110100
+            ; feature 2:
+            ;   bit 6 : INT 16/AH=09h (keyboard functionality) supported
+            db 0b01000000
+            db 0b00000000   ; Feature 3
+            db 0b00000000   ; Feature 4
+            db 0b00000000   ; Feature 5
+            db 0, 0, 0, 0, 0, 0, 0
 
 
-; ************************* Extended BIOS data
+
+; ************************* Extended BIOS Data Area (EBDA)
 
 eda              db 1        ; size in K
 eda_drive_offset dw 0000
@@ -3687,6 +3945,8 @@ int1b:
 int1d:
 
 iret
+
+
 
 ; ************ Function call library ************
 
@@ -6239,6 +6499,140 @@ put_mode13_char_done:
   ret
 
 
+
+; ************************* INT 70h handler - MC146818 RTC
+int70:
+  push ds
+  push ax
+
+  ; load DS with BIOS data area
+  mov  ax, 0x0040
+  mov  ds, ax
+
+  ; get interrupt flags (clear on read)
+  mov  al, 0x0b       ; RTC register B
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  xchg al, ah         ; save into AH
+
+  ; get interrupt enabled flags
+  mov  al, 0x0c       ; RTC register C
+  out  RTC_SEL, al
+  in   al, RTC_REG
+
+  ; match reported flags with enabled interrupts
+  and  ah, al
+
+  ; periodic interrupt?
+  test ah, 0x40
+  jz   int70_checkAlarm ; no, bypass
+
+  ; handle Periodic Interrupt
+  ; subtract 976us to wait count
+  sub  word [wait_count_lo - bios_data], 976
+  sbb  word [wait_count_hi - bios_data], 0
+  jnc  int70_checkAlarm ; bypass if result is > 0
+
+  ; it is the time for disable periodic interrupt
+  ; reset PIE in register B
+  mov  al, 0x0b
+  out  RTC_SEL, al
+  in   al, RTC_REG
+  and  al, 0xbf
+  out  RTC_REG, al
+  ; reset wait flag
+  mov  byte [wait_active_flag - bios_data], 0x00
+  ; reset user wait flag
+  push bx
+  lds  bx, [usr_waitflag_off - bios_data] ; load DS from usr_waitfalg_seg and BX from usr_waitflag_off
+  mov  byte [bx], 0x80
+  pop  bx
+  ; note: from here DS is no more valid
+
+int70_checkAlarm:
+  ; alarm interrupt?
+  test ah, 0x20
+  jz   int70_exit       ; no, exit
+  ; handle Alarm Interrupt
+  int  0x4a
+
+int70_exit:
+  call reportEOIB
+  pop  ax
+  pop  ds
+  iret
+
+
+
+; ************************* INT 74h handler - PS/2 mouse
+int74:
+  push ax
+  push bx
+  push cx
+  push ds
+
+  ; load EBDA segment to DS
+  mov  ax, EBDA_SEG
+  mov  ds, ax
+
+  ; read mouse data from 8042
+  in   al, 0x60
+
+  ; put data index into BX
+  mov  bl, [EBDA_FLAGS1]
+  and  bl, 7
+  xor  bh, bh
+
+  ; save read data
+  mov  [EBDA_PACKET + bx], al
+  inc  bx
+
+  ; save new data index
+  and  byte [EBDA_FLAGS1], 0xf8
+  or   byte [EBDA_FLAGS1], bl
+
+  ; compare with packet size
+  mov  al, [EBDA_FLAGS2]
+  and  al, 7
+  cmp  bl, al
+  jl   int74_exit
+
+  ; packet complete, mouse driver installed?
+  test byte [EBDA_FLAGS2], 0x80
+  jz   int74_reset          ; no, just reset index and exit
+
+  ; packet complete push first 4 datas
+  mov  cx, 4
+  mov  bx, EBDA_PACKET
+  xor  ah, ah
+int74_push:
+  mov  al, [bx]
+  push ax
+  inc  bx
+  loop int74_push
+
+  ; call mouse driver
+  call far [EBDA_DRIVER_OFFSET]
+
+  ; remove parameters
+  mov  cx, 4
+int74_pop:
+  pop  ax
+  loop int74_pop
+
+  ; reset index
+int74_reset:
+  and  byte [EBDA_FLAGS1], 0xf8
+
+int74_exit:
+  call reportEOIB
+  pop  ds
+  pop  cx
+  pop  bx
+  pop  ax
+  iret
+
+
 ; Reaches up into the stack before the end of an interrupt handler, and sets the carry flag
 
 reach_stack_stc:
@@ -6292,9 +6686,12 @@ lpt2addr         dw  0
 lpt3addr         dw  0
 lpt4addr         dw  0                   ; 40:0e
 
-; bit 0 : diskette available for boot
-; bit 2 : PS/2 mouse present
-equip            dw  0b1101010000100101  ; 40:10h
+; bit 0     : diskette available for boot
+; bit 2     : PS/2 mouse present
+; bit 4-5   : 80x25 color (10)
+; bit 9-11  : number of serial ports (010 = 2)
+; bit 14-15 : number of printer adapters
+equip            dw  0b0001010000100101  ; 40:10h
 
                  db  0
 memsize          dw  MEMSIZE
@@ -6333,8 +6730,10 @@ vid_rom_segaddr  dw  0
 biod_data_vid_end:
 
 last_intr        db  0
-clk_dtimer       dd  0
-clk_rollover     db  0
+clk_dtimer:
+clk_dtimer_lo    dw  0   ; 0x6c
+clk_dtimer_hi    dw  0   ; 0x6e
+clk_rollover     db  0   ; 0x70
 ctrl_break       db  0
 soft_rst_flg     dw  0x1234
                  db  0
@@ -6368,11 +6767,11 @@ video_card       db  0x0c ; 0x0c
                  db  0
 kb_mode          db  0x10    ; 40:96, bit 4 = 1, 101/102 enhanced keyboard
 kb_led           db  0x10    ; 40:97, bit 4 = 1, ACK received (always on)
-                 dw  0       ; 40:98
-                 dw  0       ; 40:9a
-                 dw  0       ; 40:9c
-                 dw  0       ; 40:9e
-                 db  0       ; 40:a0
+usr_waitflag_off dw  0       ; 40:98
+usr_waitfalg_seg dw  0       ; 40:9a
+wait_count_lo    dw  0       ; 40:9c
+wait_count_hi    dw  0       ; 40:9e
+wait_active_flag db  0       ; 40:a0
 
 ending:
 times (0xff-($-com1addr)) db  0
@@ -6417,6 +6816,7 @@ int_table   dw int0
             dw 0xf000
             dw intf
             dw 0xf000
+
             dw int10
             dw 0xf000
             dw int11
@@ -6443,12 +6843,210 @@ int_table   dw int0
             dw 0xf000
             dw int1c
             dw 0xf000
-            dw video_init_table
+            dw video_init_table   ; int1d
             dw 0xf000
             dw int1e
             dw 0xf000
-            dw cga_glyphs + 1024
+            dw cga_glyphs + 1024  ; int1f
             dw 0xf000
+
+            dw 0x0000   ; int20
+            dw 0x0000
+            dw 0x0000   ; int21
+            dw 0x0000
+            dw 0x0000   ; int22
+            dw 0x0000
+            dw 0x0000   ; int23
+            dw 0x0000
+            dw 0x0000   ; int24
+            dw 0x0000
+            dw 0x0000   ; int25
+            dw 0x0000
+            dw 0x0000   ; int26
+            dw 0x0000
+            dw 0x0000   ; int27
+            dw 0x0000
+            dw 0x0000   ; int28
+            dw 0x0000
+            dw 0x0000   ; int29
+            dw 0x0000
+            dw 0x0000   ; int2a
+            dw 0x0000
+            dw 0x0000   ; int2b
+            dw 0x0000
+            dw 0x0000   ; int2c
+            dw 0x0000
+            dw 0x0000   ; int2d
+            dw 0x0000
+            dw 0x0000   ; int2e
+            dw 0x0000
+            dw 0x0000   ; int2f
+            dw 0x0000
+
+            dw 0x0000   ; int30
+            dw 0x0000
+            dw 0x0000   ; int31
+            dw 0x0000
+            dw 0x0000   ; int32
+            dw 0x0000
+            dw 0x0000   ; int33
+            dw 0x0000
+            dw 0x0000   ; int34
+            dw 0x0000
+            dw 0x0000   ; int35
+            dw 0x0000
+            dw 0x0000   ; int36
+            dw 0x0000
+            dw 0x0000   ; int37
+            dw 0x0000
+            dw 0x0000   ; int38
+            dw 0x0000
+            dw 0x0000   ; int39
+            dw 0x0000
+            dw 0x0000   ; int3a
+            dw 0x0000
+            dw 0x0000   ; int3b
+            dw 0x0000
+            dw 0x0000   ; int3c
+            dw 0x0000
+            dw 0x0000   ; int3d
+            dw 0x0000
+            dw 0x0000   ; int3e
+            dw 0x0000
+            dw 0x0000   ; int3f
+            dw 0x0000
+
+            dw 0x0000   ; int40
+            dw 0x0000
+            dw 0x0000   ; int41
+            dw 0x0000
+            dw 0x0000   ; int42
+            dw 0x0000
+            dw 0x0000   ; int43
+            dw 0x0000
+            dw 0x0000   ; int44
+            dw 0x0000
+            dw 0x0000   ; int45
+            dw 0x0000
+            dw 0x0000   ; int46
+            dw 0x0000
+            dw 0x0000   ; int47
+            dw 0x0000
+            dw 0x0000   ; int48
+            dw 0x0000
+            dw 0x0000   ; int49
+            dw 0x0000
+            dw 0x0000   ; int4a
+            dw 0x0000
+            dw 0x0000   ; int4b
+            dw 0x0000
+            dw 0x0000   ; int4c
+            dw 0x0000
+            dw 0x0000   ; int4d
+            dw 0x0000
+            dw 0x0000   ; int4e
+            dw 0x0000
+            dw 0x0000   ; int4f
+            dw 0x0000
+
+            dw 0x0000   ; int50
+            dw 0x0000
+            dw 0x0000   ; int51
+            dw 0x0000
+            dw 0x0000   ; int52
+            dw 0x0000
+            dw 0x0000   ; int53
+            dw 0x0000
+            dw 0x0000   ; int54
+            dw 0x0000
+            dw 0x0000   ; int55
+            dw 0x0000
+            dw 0x0000   ; int56
+            dw 0x0000
+            dw 0x0000   ; int57
+            dw 0x0000
+            dw 0x0000   ; int58
+            dw 0x0000
+            dw 0x0000   ; int59
+            dw 0x0000
+            dw 0x0000   ; int5a
+            dw 0x0000
+            dw 0x0000   ; int5b
+            dw 0x0000
+            dw 0x0000   ; int5c
+            dw 0x0000
+            dw 0x0000   ; int5d
+            dw 0x0000
+            dw 0x0000   ; int5e
+            dw 0x0000
+            dw 0x0000   ; int5f
+            dw 0x0000
+
+            dw 0x0000   ; int60
+            dw 0x0000
+            dw 0x0000   ; int61
+            dw 0x0000
+            dw 0x0000   ; int62
+            dw 0x0000
+            dw 0x0000   ; int63
+            dw 0x0000
+            dw 0x0000   ; int64
+            dw 0x0000
+            dw 0x0000   ; int65
+            dw 0x0000
+            dw 0x0000   ; int66
+            dw 0x0000
+            dw 0x0000   ; int67
+            dw 0x0000
+            dw 0x0000   ; int68
+            dw 0x0000
+            dw 0x0000   ; int69
+            dw 0x0000
+            dw 0x0000   ; int6a
+            dw 0x0000
+            dw 0x0000   ; int6b
+            dw 0x0000
+            dw 0x0000   ; int6c
+            dw 0x0000
+            dw 0x0000   ; int6d
+            dw 0x0000
+            dw 0x0000   ; int6e
+            dw 0x0000
+            dw 0x0000   ; int6f
+            dw 0x0000
+
+            dw int70    ; int70
+            dw 0xf000
+            dw 0x0000   ; int71
+            dw 0x0000
+            dw 0x0000   ; int72
+            dw 0x0000
+            dw 0x0000   ; int73
+            dw 0x0000
+            dw int74    ; int74
+            dw 0xf000
+            dw 0x0000   ; int75
+            dw 0x0000
+            dw 0x0000   ; int76
+            dw 0x0000
+            dw 0x0000   ; int77
+            dw 0x0000
+            dw 0x0000   ; int78
+            dw 0x0000
+            dw 0x0000   ; int79
+            dw 0x0000
+            dw 0x0000   ; int7a
+            dw 0x0000
+            dw 0x0000   ; int7b
+            dw 0x0000
+            dw 0x0000   ; int7c
+            dw 0x0000
+            dw 0x0000   ; int7d
+            dw 0x0000
+            dw 0x0000   ; int7e
+            dw 0x0000
+            dw 0x0000   ; int7f
+            dw 0x0000
 
 itbl_size   dw $-int_table
 
@@ -6490,15 +7088,6 @@ vid_static_table:
   dw 0x00 ; reserved
   db 0x08 ; save pointer function flags
   db 0x00 ; reserved
-
-
-; Internal variables for VMEM driver
-
-int8_ctr      db  0
-in_update     db  0
-last_attrib   db  0
-int_curpos_x  db  0
-int_curpos_y  db  0
 
 
 ; CGA Character set patterns

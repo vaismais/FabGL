@@ -33,7 +33,7 @@ namespace fabgl {
 
 #pragma GCC optimize ("O3")
 
-#if FABGL_ESP_IDF_VERSION > FABGL_ESP_IDF_VERSION_VAL(3, 3, 4)
+#if FABGL_ESP_IDF_VERSION > FABGL_ESP_IDF_VERSION_VAL(3, 3, 5)
   #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 #endif
 
@@ -348,6 +348,18 @@ uint8_t i8086::AL()
 uint8_t i8086::AH()
 {
   return regs8[REG_AH];
+}
+
+
+void i8086::setBL(uint8_t value)
+{
+  regs8[REG_BL] = value;
+}
+
+
+void i8086::setBH(uint8_t value)
+{
+  regs8[REG_BH] = value;
 }
 
 

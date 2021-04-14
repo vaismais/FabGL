@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2020 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
   This file is part of FabGL Library.
@@ -125,6 +125,8 @@ public:
    */
   void resumePort();
 
+  uint16_t deviceID()    { return m_deviceID; }
+
 
 protected:
 
@@ -160,6 +162,7 @@ private:
   int16_t           m_retryCount;
   int16_t           m_cmdTimeOut;
   int16_t           m_cmdSubTimeOut;
+  uint16_t          m_deviceID;       // read by send_cmdIdentify()
 };
 
 

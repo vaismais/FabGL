@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
-  Copyright (c) 2019-2020 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
   This file is part of FabGL Library.
@@ -31,16 +31,6 @@
 
 #pragma GCC optimize ("O3")
 
-
-
-#define RAM_SIZE             1048576    // must correspond to bios MEMSIZE
-#define VIDEOMEMSIZE         65536
-
-// PIT (timers) frequency in Hertz
-#define PIT_TICK_FREQ        1193182
-
-// number of times PIT is updated every second
-#define PIT_UPDATES_PER_SEC  500
 
 
 
@@ -115,18 +105,31 @@ void Machine::init()
   m_HGCSwitchReg    = 0;
   m_HGCVSyncQuery   = 0;
 
-  m_i8042.init(&m_PIC8259);
+  m_speakerDataEnable = false;
 
-  m_PIC8259.reset();
+  m_soundGen.play(true);
+  m_soundGen.attach(&m_sinWaveGen);
+
+  m_i8042.init();
+  m_i8042.setCallbacks(this, keyboardInterrupt, mouseInterrupt);
+
+  m_PIC8259A.reset();
+  m_PIC8259B.reset();
 
   m_PIT8253.setCallbacks(this, PITChangeOut, PITTick);
   m_PIT8253.reset();
   m_PIT8253.runAutoTick(PIT_TICK_FREQ, PIT_UPDATES_PER_SEC);
+  m_PIT8253.setGate(0, true);
+  m_PIT8253.setGate(1, true);
+
+  m_MC146818.init("PCEmulator");
+  m_MC146818.setCallbacks(this, MC146818Interrupt);
+  m_MC146818.reset();
 
   memset(m_CGA6845, 0, sizeof(m_CGA6845));
   memset(m_HGC6845, 0, sizeof(m_HGC6845));
 
-  m_BIOS.init(s_memory, this, readPort, writePort, m_i8042.keyboard());
+  m_BIOS.init(this);
 
   i8086::setCallbacks(this, readPort, writePort, writeVideoMemory8, writeVideoMemory16, interrupt);
   i8086::setMemory(s_memory);
@@ -173,8 +176,10 @@ void Machine::tick()
 {
   ++m_ticksCounter;
 
-  if (m_PIC8259.pendingInterrupt() && i8086::IRQ(m_PIC8259.pendingInterruptNum()))
-    m_PIC8259.ackPendingInterrupt();
+  if (m_PIC8259A.pendingInterrupt() && i8086::IRQ(m_PIC8259A.pendingInterruptNum()))
+    m_PIC8259A.ackPendingInterrupt();
+  if (m_PIC8259B.pendingInterrupt() && i8086::IRQ(m_PIC8259B.pendingInterruptNum()))
+    m_PIC8259B.ackPendingInterrupt();
 }
 
 
@@ -332,10 +337,16 @@ void Machine::writePort(void * context, int address, uint8_t value)
 
   switch (address) {
 
-    // PIC8259
+    // PIC8259A
     case 0x20:
     case 0x21:
-      m->m_PIC8259.write(address & 1, value);
+      m->m_PIC8259A.write(address & 1, value);
+      break;
+
+    // PIC8259B
+    case 0xa0:
+    case 0xa1:
+      m->m_PIC8259B.write(address & 1, value);
       break;
 
     // PIT8253
@@ -344,6 +355,8 @@ void Machine::writePort(void * context, int address, uint8_t value)
     case 0x0042:
     case 0x0043:
       m->m_PIT8253.write(address & 3, value);
+      if ((address == 0x43 && (value >> 6) == 2) || address == 0x42)
+        m->speakerSetFreq();
       break;
 
     // 8042 keyboard controller input
@@ -351,9 +364,24 @@ void Machine::writePort(void * context, int address, uint8_t value)
       m->m_i8042.write(0, value);
       break;
 
+    // PortB
+    //   bit 1 : speaker data enable
+    //   bit 0 : timer 2 gate
+    case 0x0061:
+      m->m_speakerDataEnable = value & 0x02;
+      m->m_PIT8253.setGate(2, value & 0x01);
+      m->speakerEnableDisable();
+      break;
+
     // 8042 keyboard controller input
     case 0x0064:
       m->m_i8042.write(1, value);
+      break;
+
+    // MC146818 RTC & RAM
+    case 0x0070:
+    case 0x0071:
+      m->m_MC146818.write(address & 1, value);
       break;
 
     // CGA - CRT 6845 - register selection register
@@ -415,10 +443,15 @@ uint8_t Machine::readPort(void * context, int address)
 
   switch (address) {
 
-    // PIC8259
+    // PIC8259A
     case 0x0020:
     case 0x0021:
-      return m->m_PIC8259.read(address & 1);
+      return m->m_PIC8259A.read(address & 1);
+
+    // PIC8259B
+    case 0x00a0:
+    case 0x00a1:
+      return m->m_PIC8259B.read(address & 1);
 
     // PIT8253
     case 0x0040:
@@ -431,13 +464,29 @@ uint8_t Machine::readPort(void * context, int address)
     case 0x0060:
       return m->m_i8042.read(0);
 
+    // Port B
+    //   bit 5 : timer 2 out
+    //   bit 4 : toggles every 15.085us (DMA refresh)
+    //   bit 1 : speaker data enable
+    //   bit 0 : timer 2 gate
+    case 0x0061:
+      return ((int)m->m_PIT8253.getOut(2) << 5) |    // bit 5
+             (esp_timer_get_time() & 0x10)       |   // bit 4 (toggles every 16us)
+             ((int)m->m_speakerDataEnable << 1)  |   // bit 1
+             ((int)m->m_PIT8253.getGate(2));         // bit 0
+
     // I/O port
     case 0x0062:
-      return 0x20 * m->m_PIT8253.readOut(2);  // bit 5 = timer 2 output
+      return 0x20 * m->m_PIT8253.getOut(2);  // bit 5 = timer 2 output
 
     // 8042 keyboard controller status register
     case 0x0064:
       return m->m_i8042.read(1);
+
+    // MC146818 RTC & RAM
+    case 0x0070:
+    case 0x0071:
+      return m->m_MC146818.read(address & 1);
 
     // CGA - CRT 6845 - register selection register
     case 0x3d4:
@@ -481,10 +530,34 @@ void Machine::PITChangeOut(void * context, int timerIndex)
   auto m = (Machine*)context;
 
   // timer 0 trigged?
-  if (timerIndex == 0 &&  m->m_PIT8253.readOut(0) == true) {
-    // yes, report IR0 (IRQ8)
-    m->m_PIC8259.signalInterrupt(0);
+  if (timerIndex == 0 &&  m->m_PIT8253.getOut(0) == true) {
+    // yes, report 8259A-IR0 (IRQ0, INT 08h)
+    m->m_PIC8259A.signalInterrupt(0);
   }
+}
+
+
+// 8259A-IR1 (IRQ1, INT 09h)
+bool Machine::keyboardInterrupt(void * context)
+{
+  auto m = (Machine*)context;
+  return m->m_PIC8259A.signalInterrupt(1);
+}
+
+
+// 8259B-IR4 (IRQ12, INT 074h)
+bool Machine::mouseInterrupt(void * context)
+{
+  auto m = (Machine*)context;
+  return m->m_PIC8259B.signalInterrupt(4);
+}
+
+
+// interrupt from MC146818, trig 8259B-IR0 (IRQ8, INT 70h)
+bool Machine::MC146818Interrupt(void * context)
+{
+  auto m = (Machine*)context;
+  return m->m_PIC8259B.signalInterrupt(0);
 }
 
 
@@ -514,7 +587,7 @@ bool Machine::interrupt(void * context, int num)
 {
   auto m = (Machine*)context;
 
-  //printf("INT %02X (AH = %02X)\n", num, i8086::AH());
+  //printf("INT %02X (AX = %04X)\n", num, i8086::AX());
 
   // emu interrupts callable only inside the BIOS segment
   if (i8086::CS() == BIOS_SEG) {
@@ -545,17 +618,6 @@ bool Machine::interrupt(void * context, int num)
         auto r = fwrite(s_memory + src, 1, count, m->m_disk[diskIndex]);
         i8086::setAL(r & 0xff);
         //printf("write(0x%05X, %d, %d) => %d\n", src, count, diskIndex, r);
-        return true;
-      }
-
-      // Get RTC
-      case 0xf3:
-      {
-        // @TODO
-        //printf("Get RTC\n");
-        uint32_t dest = i8086::ES() * 16 + i8086::BX();
-        memset(s_memory + dest, 0, 36);
-        *(int16_t*)(s_memory + dest + 36) = xTaskGetTickCount() * portTICK_PERIOD_MS;
         return true;
       }
 
@@ -595,12 +657,12 @@ bool Machine::interrupt(void * context, int num)
 
       // test point P0
       case 0xf9:
-        printf("P0\n");
+        printf("P0 AX=%04X BX=%04X CX=%04X DX=%04X DS=%04X\n", i8086::AX(), i8086::BX(), i8086::CX(), i8086::DX(), i8086::DS());
         return true;
 
       // test point P1
       case 0xfa:
-        printf("P1\n");
+        printf("P1 AX=%04X BX=%04X CX=%04X DX=%04X DS=%04X\n", i8086::AX(), i8086::BX(), i8086::CX(), i8086::DX(), i8086::DS());
         return true;
 
     }
@@ -609,5 +671,31 @@ bool Machine::interrupt(void * context, int num)
   // not hanlded
   return false;
 }
+
+
+void Machine::speakerSetFreq()
+{
+  //printf("speakerSetFreq: count = %d\n", m_PIT8253.timerInfo(2).resetCount);
+  int timerCount = m_PIT8253.timerInfo(2).resetCount;
+  if (timerCount == 0)
+    timerCount = 65536;
+  int freq = PIT_TICK_FREQ / timerCount;
+  //printf("   freq = %dHz\n", freq);
+  m_sinWaveGen.setFrequency(freq);
+}
+
+
+void Machine::speakerEnableDisable()
+{
+  bool genEnabled = m_PIT8253.getGate(2);
+  if (genEnabled && m_speakerDataEnable) {
+    // speaker enabled
+    m_sinWaveGen.enable(true);
+  } else {
+    // speaker disabled
+    m_sinWaveGen.enable(false);
+  }
+}
+
 
 

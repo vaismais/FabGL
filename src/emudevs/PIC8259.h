@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
-  Copyright (c) 2019-2020 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
   This file is part of FabGL Library.
@@ -53,7 +53,7 @@ public:
   uint8_t read(int addr);
 
   // Device->8259: a device reports interrupt to 8259
-  void signalInterrupt(int intnum);
+  bool signalInterrupt(int intnum);
 
   // 8259->CPU: 8259 reports interrupt to CPU
   bool pendingInterrupt()                               { return m_pendingInterrupt; }

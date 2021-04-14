@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
-  Copyright (c) 2019-2020 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
   This file is part of FabGL Library.
@@ -29,14 +29,26 @@
 #include "emudevs/PIC8259.h"
 #include "emudevs/PIT8253.h"
 #include "emudevs/i8042.h"
+#include "emudevs/MC146818.h"
 
 #include "bios.h"
+
+
+#define RAM_SIZE             1048576    // must correspond to bios MEMSIZE
+#define VIDEOMEMSIZE         65536
+
+// PIT (timers) frequency in Hertz
+#define PIT_TICK_FREQ        1193182
+
+// number of times PIT is updated every second
+#define PIT_UPDATES_PER_SEC  500
 
 
 using fabgl::GraphicsAdapter;
 using fabgl::PIC8259;
 using fabgl::PIT8253;
 using fabgl::i8042;
+using fabgl::MC146818;
 
 
 class Machine {
@@ -47,7 +59,13 @@ public:
 
   void run();
 
-  uint32_t ticksCounter() { return m_ticksCounter; }
+  uint32_t ticksCounter()    { return m_ticksCounter; }
+
+  i8042 * getI8042()         { return &m_i8042; }
+
+  MC146818 * getMC146818()   { return &m_MC146818; }
+
+  uint8_t * memory()         { return s_memory; }
 
 private:
 
@@ -75,6 +93,14 @@ private:
   static void PITChangeOut(void * context, int timerIndex);
   static void PITTick(void * context, int timerIndex);
 
+  static bool MC146818Interrupt(void * context);
+
+  static bool keyboardInterrupt(void * context);
+  static bool mouseInterrupt(void * context);
+
+  void speakerSetFreq();
+  void speakerEnableDisable();
+
 
   GraphicsAdapter          m_graphicsAdapter;
 
@@ -85,8 +111,9 @@ private:
   static uint8_t *         s_memory;
   static uint8_t *         s_videoMemory;
 
-  // 8259 Programmable Interrupt Controller
-  PIC8259                  m_PIC8259;
+  // 8259 Programmable Interrupt Controllers
+  PIC8259                  m_PIC8259A;  // master
+  PIC8259                  m_PIC8259B;  // slave
 
   // 8253 Programmable Interval Timers
   // pin connections of PIT8253 on the IBM XT:
@@ -120,6 +147,14 @@ private:
   uint8_t                  m_HGCModeReg;
   uint8_t                  m_HGCSwitchReg;
   uint16_t                 m_HGCVSyncQuery;
+
+  // speaker/audio
+  bool                     m_speakerDataEnable;
+  SoundGenerator           m_soundGen;
+  SineWaveformGenerator    m_sinWaveGen;
+
+  // CMOS & RTC
+  MC146818                 m_MC146818;
 
 };
 

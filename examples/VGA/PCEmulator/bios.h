@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2020 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
   This file is part of FabGL Library.
@@ -24,6 +24,8 @@
 
 
 #include "fabgl.h"
+#include "emudevs/i8042.h"
+#include "emudevs/MC146818.h"
 
 
 #define BIOS_SEG             0xF000
@@ -33,7 +35,8 @@
 
 // BIOS Data Area
 
-#define BIOS_DATAAREA_ADDR   (0x40 * 16)
+#define BIOS_DATAAREA_SEG      0x40
+#define BIOS_DATAAREA_ADDR     (BIOS_DATAAREA_SEG << 4)
 
 #define BIOS_KBDSHIFTFLAGS1    0x17     // keyboard shift flags
 #define BIOS_KBDSHIFTFLAGS2    0x18     // more keyboard shift flags
@@ -41,27 +44,43 @@
 #define BIOS_KBDBUFHEAD        0x1a     // pointer to next character in keyboard buffer
 #define BIOS_KBDBUFTAIL        0x1c     // pointer to first available spot in keyboard buffer
 #define BIOS_KBDBUF            0x1e     // keyboard buffer (32 bytes, 16 keys, but actually 15)
+#define BIOS_SYSTICKS          0x6c     // system ticks (dword)
+#define BIOS_CLKROLLOVER       0x70     // system tick rollover flag (24h)
 #define BIOS_CTRLBREAKFLAG     0x71     // Ctrl-Break flag
 #define BIOS_KBDMODE           0x96     // keyboard mode and other shift flags
 #define BIOS_KBDLEDS           0x97     // keyboard LEDs
 #define BIOS_PRINTSCREENFLAG   0x100    // PRINTSCREEN flag
 
 
+// Extended BIOS Data Area (EBDA)
+
+#define EBDA_SEG               0x9fc0   // EBDA Segment, must match with same value in bios.asm
+#define EBDA_ADDR              (EBDA_SEG << 4)
+
+#define EBDA_DRIVER_OFFSET     0x22     // Pointing device device driver far call offset
+#define EBDA_DRIVER_SEG        0x24     // Pointing device device driver far call segment
+#define EBDA_FLAGS1            0x26     // Flags 1 (bits 0-2: recv data index)
+#define EBDA_FLAGS2            0x27     // Flags 2 (bits 0-2: packet size, bit 7: device handler installed)
+#define EBDA_PACKET            0x28     // Start of packet
+
+
+
 
 using fabgl::PS2Controller;
 using fabgl::Keyboard;
+using fabgl::Mouse;
+using fabgl::i8042;
+using fabgl::MC146818;
+
+
+class Machine;
 
 
 class BIOS {
 
 public:
 
-  // callbacks
-  typedef void (*WritePort)(void * context, int address, uint8_t value);
-  typedef uint8_t (*ReadPort)(void * context, int address);
-
-
-  void init(uint8_t * memory, void * context, ReadPort readPort, WritePort writePort, Keyboard * keyboard);
+  void init(Machine * machine);
 
   void helpersEntry();
 
@@ -77,15 +96,16 @@ private:
   bool processScancode(int scancode, uint16_t * syscode);
   void emptyKbdBuffer();
 
+  void pointingDeviceInterface();
 
+  void syncTicksWithRTC();
+
+  Machine *       m_machine;
   uint8_t *       m_memory;
-
-  // callbacks
-  void *          m_context;
-  ReadPort        m_readPort;
-  WritePort       m_writePort;
-
-  Keyboard      * m_keyboard;
+  Keyboard *      m_keyboard;
+  Mouse *         m_mouse;
+  i8042 *         m_i8042;
+  MC146818 *      m_MC146818;
 
   // state of multibyte scancode intermediate reception:
   // 0 = none

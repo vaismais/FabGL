@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
-  Copyright (c) 2019-2020 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
   This file is part of FabGL Library.
@@ -56,6 +56,7 @@ void setup()
   Serial.begin(115200); delay(500); printf("\n\n\nReset\n\n");// DEBUG ONLY
 
   disableCore0WDT();
+  delay(100); // experienced crashes without this delay!
   disableCore1WDT();
 
   // we need PSRAM for this app, but we will handle it manually, so please DO NOT enable PSRAM on your development env
@@ -76,7 +77,12 @@ void setup()
     printf("This app requires an SD-CARD\n");
     while (1);
   }
-  
+
+  // setup time (@TODO: use WiFi and sntp)
+  auto tm = (struct tm){ .tm_sec  = 0, .tm_min  = 0, .tm_hour = 8, .tm_mday = 14, .tm_mon  = 7, .tm_year = 84 };
+  auto now = (timeval){ .tv_sec = mktime(&tm) };
+  settimeofday(&now, nullptr);
+
   machine.run();
 }
 

@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
-  Copyright (c) 2019-2020 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
   This file is part of FabGL Library.
@@ -175,16 +175,19 @@ void PIC8259::setPendingInterrupt()
 
 
 // Device->8259: a device reports interrupt to 8259
-void PIC8259::signalInterrupt(int intnum)
+bool PIC8259::signalInterrupt(int intnum)
 {
   //printf("PIC8259::signalInterrupt(%d)\n", intnum);
+  bool success = false;
   intnum &= 7;
   // already servicing?
   if ((m_ISR & (1 << intnum)) == 0) {
     // no, request interrupt
     m_IRR |= 1 << intnum;
     setPendingInterrupt();
+    success = true;
   }
+  return success;
 }
 
 

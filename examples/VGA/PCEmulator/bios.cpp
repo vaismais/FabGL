@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2020 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
   This file is part of FabGL Library.
@@ -22,6 +22,7 @@
 
 
 #include "bios.h"
+#include "machine.h"
 #include "emudevs/i8086.h"
 
 
@@ -34,15 +35,14 @@ static const uint8_t biosrom[] = {
 };
 
 
-void BIOS::init(uint8_t * memory, void * context, ReadPort readPort, WritePort writePort, Keyboard * keyboard)
+void BIOS::init(Machine * machine)
 {
-  m_memory    = memory;
-
-  m_context   = context;
-  m_readPort  = readPort;
-  m_writePort = writePort;
-
-  m_keyboard  = keyboard;
+  m_machine   = machine;
+  m_memory    = m_machine->memory();
+  m_i8042     = m_machine->getI8042();
+  m_keyboard  = m_i8042->keyboard();
+  m_mouse     = m_i8042->mouse();
+  m_MC146818  = m_machine->getMC146818();
 
 	// copy bios
   memcpy(m_memory + BIOS_ADDR, biosrom, sizeof(biosrom));
@@ -87,6 +87,16 @@ void BIOS::helpersEntry()
     // AH = 0x05, store keyboard key data
     case 0x05:
       storeKeyboardKeyData();
+      break;
+
+    // AH = 0x06, pointing device interface
+    case 0x06:
+      pointingDeviceInterface();
+      break;
+
+    // AH = 0x07, synchronize system ticks with RTC
+    case 0x07:
+      syncTicksWithRTC();
       break;
 
     default:
@@ -534,4 +544,155 @@ void BIOS::storeKeyboardKeyData()
 }
 
 
+// Implements all services of "INT 15 Function C2h"
+// inputs:
+//    AL : subfunction
+//    .. : depends by the subfunction
+// outputs:
+//    AH : 0 = success, >0 = error (see "INT 15h Function C2h - Pointing Device Interface")
+//    CF : 0 = successful, 1 = unsuccessful
+//    .. : depends by the subfunction
+void BIOS::pointingDeviceInterface()
+{
+  if (m_mouse->isMouseAvailable()) {
 
+    i8086::setAH(0x00);
+    i8086::setFlagCF(0);
+
+    switch (i8086::AL()) {
+
+      // Enable/disable pointing device
+      // inputs:
+      //    AL : 0x00
+      //    BH : 0 = disable, 1 = enable
+      case 0x00:
+        m_i8042->enableMouse(i8086::BH());
+        break;
+
+      // Reset pointing device
+      // inputs:
+      //    AL : 0x01
+      // outputs:
+      //    BH : Device ID
+      case 0x01:
+        m_i8042->enableMouse(false);             // mouse disabled
+        m_mouse->setSampleRate(100);             // 100 reports/second
+        m_mouse->setResolution(2);               // 4 counts/millimeter
+        m_mouse->setScaling(1);                  // 1:1 scaling
+        i8086::setBH(m_mouse->deviceID() & 0xff);
+        break;
+
+      // Set sample rate
+      // inputs:
+      //    AL : 0x02
+      //    BH : Sample rate
+      case 0x02:
+        m_mouse->setSampleRate(i8086::BH());
+        break;
+
+      // Set resolution
+      // inputs:
+      //    AL : 0x03
+      //    BH : Resolution value
+      case 0x03:
+        m_mouse->setResolution(i8086::BH());
+        break;
+
+      // Read device type
+      // inputs:
+      //    AL : 0x04
+      case 0x04:
+        i8086::setBH(m_mouse->deviceID() & 0xff);
+        break;
+
+      // Initialize pointing device interface
+      // inputs:
+      //    AL : 0x05
+      //    BH : Data package size (1-8, in bytes)
+      //         note: this value is acqually ignored because we get actual packet size from Mouse object
+      case 0x05:
+      {
+        m_i8042->enableMouse(false);              // mouse disabled
+        m_mouse->setSampleRate(100);              // 100 reports/second
+        m_mouse->setResolution(2);                // 4 counts/millimeter
+        m_mouse->setScaling(1);                   // 1:1 scaling
+        uint8_t * EBDA = m_memory + EBDA_ADDR;
+        EBDA[EBDA_DRIVER_OFFSET] = 0x0000;
+        EBDA[EBDA_DRIVER_SEG]    = 0x0000;
+        EBDA[EBDA_FLAGS1]        = 0x00;
+        EBDA[EBDA_FLAGS2]        = m_mouse->getPacketSize(); // instead of i8086::BH()!!
+        break;
+      }
+
+      // Set scaling or get status
+      // inputs:
+      //    AL : 0x06
+      //    BH : subfunction
+      case 0x06:
+        switch (i8086::BH()) {
+          // Set scaling factor to 1:1
+          // inputs:
+          //    BH : 0x01
+          case 0x01:
+            m_mouse->setScaling(1);
+            break;
+          // Set scaling factor to 2:1
+          // inputs:
+          //    BH : 0x02
+          case 0x02:
+            m_mouse->setScaling(2);
+            break;
+          default:
+            // not implements
+            printf("Pointing device function 06:%02X not implemented\n", i8086::BH());
+            i8086::setAH(0x86);
+            i8086::setFlagCF(1);
+            break;
+        }
+        break;
+
+      // Set pointing device handler address
+      // inputs:
+      //    AL = 0x07
+      //    ES:BX : Pointer to application-program's device driver
+      case 0x07:
+      {
+        uint8_t * EBDA = m_memory + EBDA_ADDR;
+        *(uint16_t*)(EBDA + EBDA_DRIVER_OFFSET) = i8086::BX();
+        *(uint16_t*)(EBDA + EBDA_DRIVER_SEG)    = i8086::ES();
+        EBDA[EBDA_FLAGS2] |= 0x80;  // set handler installed flag
+        break;
+      }
+
+      default:
+        // not implements
+        printf("Pointing device function %02X not implemented\n", i8086::AL());
+        i8086::setAH(0x86);
+        i8086::setFlagCF(1);
+        break;
+    }
+
+  } else {
+    // mouse not available
+    i8086::setAH(0x03);   // 0x03 = interface error
+    i8086::setFlagCF(1);
+  }
+}
+
+
+// convert packed BCD to decimal
+static uint8_t BCDtoByte(uint8_t v)
+{
+  return (v & 0x0F) + (v >> 4) * 10;
+}
+
+// synchronize system ticks with RTC
+void BIOS::syncTicksWithRTC()
+{
+  int ss = BCDtoByte(m_MC146818->reg(0x00));
+  int mm = BCDtoByte(m_MC146818->reg(0x02));
+  int hh = BCDtoByte(m_MC146818->reg(0x04));
+  int totSecs = ss + mm * 60 + hh * 3600;
+  int64_t pitTicks = totSecs * PIT_TICK_FREQ;
+  *(uint32_t*)(m_memory + BIOS_DATAAREA_ADDR + BIOS_SYSTICKS) = pitTicks / 65536;
+}
