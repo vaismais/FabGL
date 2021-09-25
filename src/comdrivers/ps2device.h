@@ -3,7 +3,11 @@
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -159,7 +163,6 @@ protected:
 private:
 
   int16_t           m_PS2Port;
-  int16_t           m_retryCount;
   int16_t           m_cmdTimeOut;
   int16_t           m_cmdSubTimeOut;
   uint16_t          m_deviceID;       // read by send_cmdIdentify()

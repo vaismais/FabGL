@@ -1,9 +1,13 @@
 /*
-  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
+  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -30,6 +34,7 @@
 #include "emudevs/PIT8253.h"
 #include "emudevs/i8042.h"
 #include "emudevs/MC146818.h"
+#include "devdrivers/MCP23S17.h"
 
 #include "bios.h"
 
@@ -49,6 +54,12 @@ using fabgl::PIC8259;
 using fabgl::PIT8253;
 using fabgl::i8042;
 using fabgl::MC146818;
+using fabgl::MCP23S17;
+
+
+#ifdef FABGL_EMULATED
+typedef void (*StepCallback)(void *);
+#endif
 
 
 class Machine {
@@ -57,15 +68,36 @@ public:
   Machine();
   ~Machine();
 
+  void setDriveImage(int drive, char const * filename, int cylinders = 0, int heads = 0, int sectors = 0);
+
+  void setBootDrive(int drive)      { m_bootDrive = drive; }
+
   void run();
 
-  uint32_t ticksCounter()    { return m_ticksCounter; }
+  void trigReset()                  { m_reset = true; }
 
-  i8042 * getI8042()         { return &m_i8042; }
+  uint32_t ticksCounter()           { return m_ticksCounter; }
 
-  MC146818 * getMC146818()   { return &m_MC146818; }
+  i8042 * getI8042()                { return &m_i8042; }
 
-  uint8_t * memory()         { return s_memory; }
+  MC146818 * getMC146818()          { return &m_MC146818; }
+
+  uint8_t * memory()                { return s_memory; }
+
+  FILE * disk(int index)            { return m_disk[index]; }
+  uint64_t diskSize(int index)      { return m_diskSize[index]; }
+  uint16_t diskCylinders(int index) { return m_diskCylinders[index]; }
+  uint8_t diskHeads(int index)      { return m_diskHeads[index]; }
+  uint8_t diskSectors(int index)    { return m_diskSectors[index]; }
+
+  static void dumpMemory(char const * filename);
+  static void dumpInfo(char const * filename);
+
+  static bool createEmptyDisk(int diskType, char const * filename);
+
+  #ifdef FABGL_EMULATED
+  void setStepCallback(StepCallback value)  { m_stepCallback = value; }
+  #endif
 
 private:
 
@@ -73,6 +105,7 @@ private:
   static void runTask(void * pvParameters);
 
   void init();
+  void reset();
 
   void tick();
 
@@ -87,6 +120,8 @@ private:
 
   static void writeVideoMemory8(void * context, int address, uint8_t value);
   static void writeVideoMemory16(void * context, int address, uint16_t value);
+  static uint8_t readVideoMemory8(void * context, int address);
+  static uint16_t readVideoMemory16(void * context, int address);
 
   static bool interrupt(void * context, int num);
 
@@ -97,16 +132,28 @@ private:
 
   static bool keyboardInterrupt(void * context);
   static bool mouseInterrupt(void * context);
+  static bool resetMachine(void * context);
+  static bool sysReq(void * context);
 
   void speakerSetFreq();
   void speakerEnableDisable();
 
+  void autoDetectDriveGeometry(int drive);
+
+
+  bool                     m_reset;
 
   GraphicsAdapter          m_graphicsAdapter;
 
   BIOS                     m_BIOS;
 
-  FILE *                   m_disk[2];
+  // 0, 1 = floppy
+  // >= 2 = hard disk
+  FILE *                   m_disk[DISKCOUNT];
+  uint64_t                 m_diskSize[DISKCOUNT];
+  uint16_t                 m_diskCylinders[DISKCOUNT];
+  uint8_t                  m_diskHeads[DISKCOUNT];
+  uint8_t                  m_diskSectors[DISKCOUNT];
 
   static uint8_t *         s_memory;
   static uint8_t *         s_videoMemory;
@@ -155,6 +202,16 @@ private:
 
   // CMOS & RTC
   MC146818                 m_MC146818;
+
+  // extended I/O (MCP23S17)
+  MCP23S17                 m_MCP23S17;
+  uint8_t                  m_MCP23S17Sel;
+
+  #ifdef FABGL_EMULATED
+  StepCallback             m_stepCallback;
+  #endif
+
+  uint8_t                  m_bootDrive;
 
 };
 

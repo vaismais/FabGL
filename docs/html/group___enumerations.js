@@ -9,6 +9,12 @@ var group___enumerations =
       [ "Blank", "group___enumerations_ga58734f6595a1eefb555afc0f1897fc3f.html#gga58734f6595a1eefb555afc0f1897fc3fae885c31e41fc9fcb8ac14496dc4346df", null ],
       [ "Inverse", "group___enumerations_ga58734f6595a1eefb555afc0f1897fc3f.html#gga58734f6595a1eefb555afc0f1897fc3fa17e68c01437379e2ee2ae4ad92a918ac", null ]
     ] ],
+    [ "ChipPackage", "group___enumerations_ga5d4cf45276f202b6a848d0baf97adea0.html#ga5d4cf45276f202b6a848d0baf97adea0", [
+      [ "ESP32D0WDQ6", "group___enumerations_ga5d4cf45276f202b6a848d0baf97adea0.html#gga5d4cf45276f202b6a848d0baf97adea0ac1e5a622092c4a6696ffda151efefb66", null ],
+      [ "ESP32D0WDQ5", "group___enumerations_ga5d4cf45276f202b6a848d0baf97adea0.html#gga5d4cf45276f202b6a848d0baf97adea0ade1d97e9e28e4b67a2a96c2b400ca4b1", null ],
+      [ "ESP32D2WDQ5", "group___enumerations_ga5d4cf45276f202b6a848d0baf97adea0.html#gga5d4cf45276f202b6a848d0baf97adea0aa7b909e660bafe1f45ca286c1bc5937a", null ],
+      [ "ESP32PICOD4", "group___enumerations_ga5d4cf45276f202b6a848d0baf97adea0.html#gga5d4cf45276f202b6a848d0baf97adea0a5d8d61514b6162c2cf210601418a160f", null ]
+    ] ],
     [ "Color", "group___enumerations_gab87bacfdad76e61b9412d7124be44c1c.html#gab87bacfdad76e61b9412d7124be44c1c", [
       [ "Black", "group___enumerations_gab87bacfdad76e61b9412d7124be44c1c.html#ggab87bacfdad76e61b9412d7124be44c1cac1e9bce8242f443c54c7405223d616cd", null ],
       [ "Red", "group___enumerations_gab87bacfdad76e61b9412d7124be44c1c.html#ggab87bacfdad76e61b9412d7124be44c1cad3163c1fcda01965b692ec2c3122b743", null ],
@@ -59,7 +65,14 @@ var group___enumerations =
     ] ],
     [ "FlowControl", "group___enumerations_gae88006c219f95bae663fe0f2a2561dd7.html#gae88006c219f95bae663fe0f2a2561dd7", [
       [ "None", "group___enumerations_gae88006c219f95bae663fe0f2a2561dd7.html#ggae88006c219f95bae663fe0f2a2561dd7a6adf97f83acf6453d4a6a4b1070f3754", null ],
-      [ "Software", "group___enumerations_gae88006c219f95bae663fe0f2a2561dd7.html#ggae88006c219f95bae663fe0f2a2561dd7a719d067b229178f03bcfa1da4ac4dede", null ]
+      [ "Software", "group___enumerations_gae88006c219f95bae663fe0f2a2561dd7.html#ggae88006c219f95bae663fe0f2a2561dd7a719d067b229178f03bcfa1da4ac4dede", null ],
+      [ "Hardware", "group___enumerations_gae88006c219f95bae663fe0f2a2561dd7.html#ggae88006c219f95bae663fe0f2a2561dd7a3c02a379965ab0dfcd77b1c484450433", null ],
+      [ "Hardsoft", "group___enumerations_gae88006c219f95bae663fe0f2a2561dd7.html#ggae88006c219f95bae663fe0f2a2561dd7aa1e74360bdc370e9471d00cedfdeecbe", null ]
+    ] ],
+    [ "InputResult", "group___enumerations_ga25f6dff2b7711962b46d7c9313d28aa2.html#ga25f6dff2b7711962b46d7c9313d28aa2", [
+      [ "None", "group___enumerations_ga25f6dff2b7711962b46d7c9313d28aa2.html#gga25f6dff2b7711962b46d7c9313d28aa2a6adf97f83acf6453d4a6a4b1070f3754", null ],
+      [ "Cancel", "group___enumerations_ga25f6dff2b7711962b46d7c9313d28aa2.html#gga25f6dff2b7711962b46d7c9313d28aa2aea4788705e6873b424c65e91c2846b19", null ],
+      [ "Enter", "group___enumerations_ga25f6dff2b7711962b46d7c9313d28aa2.html#gga25f6dff2b7711962b46d7c9313d28aa2af1851d5600eae616ee802a31ac74701b", null ]
     ] ],
     [ "KbdMode", "group___enumerations_ga5d7071ad7a22fa20e52ba3e855cb4cff.html#ga5d7071ad7a22fa20e52ba3e855cb4cff", [
       [ "NoVirtualKeys", "group___enumerations_ga5d7071ad7a22fa20e52ba3e855cb4cff.html#gga5d7071ad7a22fa20e52ba3e855cb4cffadaa64f7602ad3caa98f09799e3e683b1", null ],
@@ -73,6 +86,14 @@ var group___enumerations =
     [ "LineEnds", "group___enumerations_ga8ac9813c9c9df8a1e7f6ec66b346f08e.html#ga8ac9813c9c9df8a1e7f6ec66b346f08e", [
       [ "None", "group___enumerations_ga8ac9813c9c9df8a1e7f6ec66b346f08e.html#gga8ac9813c9c9df8a1e7f6ec66b346f08ea6adf97f83acf6453d4a6a4b1070f3754", null ],
       [ "Circle", "group___enumerations_ga8ac9813c9c9df8a1e7f6ec66b346f08e.html#gga8ac9813c9c9df8a1e7f6ec66b346f08ea30954d90085f6eaaf5817917fc5fecb3", null ]
+    ] ],
+    [ "MCPDir", "group___enumerations_ga8389ac8ebb8a33d21364f84ddfa64c00.html#ga8389ac8ebb8a33d21364f84ddfa64c00", [
+      [ "Input", "group___enumerations_ga8389ac8ebb8a33d21364f84ddfa64c00.html#gga8389ac8ebb8a33d21364f84ddfa64c00a324118a6721dd6b8a9b9f4e327df2bf5", null ],
+      [ "Output", "group___enumerations_ga8389ac8ebb8a33d21364f84ddfa64c00.html#gga8389ac8ebb8a33d21364f84ddfa64c00a29c2c02a361c9d7028472e5d92cd4a54", null ]
+    ] ],
+    [ "MCPIntTrigger", "group___enumerations_gacca22cd3567afc98587db31349ba00c7.html#gacca22cd3567afc98587db31349ba00c7", [
+      [ "DefaultChange", "group___enumerations_gacca22cd3567afc98587db31349ba00c7.html#ggacca22cd3567afc98587db31349ba00c7a6ca33b1f5de2b2497a794ae17e9f25ed", null ],
+      [ "PreviousChange", "group___enumerations_gacca22cd3567afc98587db31349ba00c7.html#ggacca22cd3567afc98587db31349ba00c7a35518ad8af987f12c3c6557003ab8da2", null ]
     ] ],
     [ "MouseType", "group___enumerations_ga1a15f1712ba14a6877038ffe9c6f7708.html#ga1a15f1712ba14a6877038ffe9c6f7708", [
       [ "LegacyMouse", "group___enumerations_ga1a15f1712ba14a6877038ffe9c6f7708.html#gga1a15f1712ba14a6877038ffe9c6f7708a64426cb7833b3604fe0ab5d0eec32edf", null ],
@@ -105,8 +126,11 @@ var group___enumerations =
     ] ],
     [ "PS2Preset", "group___enumerations_gaca5d0f920057bf01d133384645a654da.html#gaca5d0f920057bf01d133384645a654da", [
       [ "KeyboardPort0_MousePort1", "group___enumerations_gaca5d0f920057bf01d133384645a654da.html#ggaca5d0f920057bf01d133384645a654daa930833460d824d9daf937c25c8b7ed74", null ],
+      [ "KeyboardPort1_MousePort0", "group___enumerations_gaca5d0f920057bf01d133384645a654da.html#ggaca5d0f920057bf01d133384645a654daab76bbc57fe0157e929fd128e8a53f907", null ],
       [ "KeyboardPort0", "group___enumerations_gaca5d0f920057bf01d133384645a654da.html#ggaca5d0f920057bf01d133384645a654daa140efa5bba007b81c709c0dc5f443ef7", null ],
-      [ "MousePort0", "group___enumerations_gaca5d0f920057bf01d133384645a654da.html#ggaca5d0f920057bf01d133384645a654daab315933e6f8a71499678887626ae5fd4", null ]
+      [ "KeyboardPort1", "group___enumerations_gaca5d0f920057bf01d133384645a654da.html#ggaca5d0f920057bf01d133384645a654daa57f4b4de9e4e8642525f0cd7c991283d", null ],
+      [ "MousePort0", "group___enumerations_gaca5d0f920057bf01d133384645a654da.html#ggaca5d0f920057bf01d133384645a654daab315933e6f8a71499678887626ae5fd4", null ],
+      [ "MousePort1", "group___enumerations_gaca5d0f920057bf01d133384645a654da.html#ggaca5d0f920057bf01d133384645a654daa0e528e35537f6d49cb912f4bcaaf5c12", null ]
     ] ],
     [ "SSD1306Orientation", "group___enumerations_ga56be86abe812065345408e6741aa1e37.html#ga56be86abe812065345408e6741aa1e37", [
       [ "Normal", "group___enumerations_ga56be86abe812065345408e6741aa1e37.html#gga56be86abe812065345408e6741aa1e37a960b44c579bc2f6818d2daaf9e4c16f0", null ],
@@ -142,6 +166,11 @@ var group___enumerations =
       [ "CheckBox", "group___enumerations_gacfde9a9ea22383d7dab2856f9319bec9.html#ggacfde9a9ea22383d7dab2856f9319bec9a7ea0f1332ade5b23b34502a3bfe715a2", null ],
       [ "RadioButton", "group___enumerations_gacfde9a9ea22383d7dab2856f9319bec9.html#ggacfde9a9ea22383d7dab2856f9319bec9accf0503df958552a245a3593e1063cd8", null ]
     ] ],
+    [ "uiHAlign", "group___enumerations_ga878ce849208099631ecb3f931c2d0e11.html#ga878ce849208099631ecb3f931c2d0e11", [
+      [ "Left", "group___enumerations_ga878ce849208099631ecb3f931c2d0e11.html#gga878ce849208099631ecb3f931c2d0e11a945d5e233cf7d6240f6b783b36a374ff", null ],
+      [ "Right", "group___enumerations_ga878ce849208099631ecb3f931c2d0e11.html#gga878ce849208099631ecb3f931c2d0e11a92b09c7c48c520c3c55e497875da437c", null ],
+      [ "Center", "group___enumerations_ga878ce849208099631ecb3f931c2d0e11.html#gga878ce849208099631ecb3f931c2d0e11a4f1f6016fc9f3f2353c0cc7c67b292bd", null ]
+    ] ],
     [ "uiMessageBoxIcon", "group___enumerations_gaae85628862e3db5a13e7c21a90589c1d.html#gaae85628862e3db5a13e7c21a90589c1d", [
       [ "None", "group___enumerations_gaae85628862e3db5a13e7c21a90589c1d.html#ggaae85628862e3db5a13e7c21a90589c1da6adf97f83acf6453d4a6a4b1070f3754", null ],
       [ "Question", "group___enumerations_gaae85628862e3db5a13e7c21a90589c1d.html#ggaae85628862e3db5a13e7c21a90589c1daa97ea56b0e00b2379736ae60869ff66a", null ],
@@ -169,6 +198,14 @@ var group___enumerations =
       [ "Sync", "group___enumerations_gac2082e5f1e16f3780b8e7d796ea10632.html#ggac2082e5f1e16f3780b8e7d796ea10632aa1c3e25967ce8edc4bf943ae05fa7af9", null ],
       [ "BackPorch", "group___enumerations_gac2082e5f1e16f3780b8e7d796ea10632.html#ggac2082e5f1e16f3780b8e7d796ea10632ad5f83b0219ea6b63db4fedab582a2da5", null ],
       [ "VisibleArea", "group___enumerations_gac2082e5f1e16f3780b8e7d796ea10632.html#ggac2082e5f1e16f3780b8e7d796ea10632ad37a59f433488f345c4201a061f088e6", null ]
+    ] ],
+    [ "VIA6522Port", "group___enumerations_ga69838990f93c3301289776790e4fc0e0.html#ga69838990f93c3301289776790e4fc0e0", [
+      [ "PA", "group___enumerations_ga69838990f93c3301289776790e4fc0e0.html#gga69838990f93c3301289776790e4fc0e0a06f6a489209115c5cef3f45036aad3ec", null ],
+      [ "PB", "group___enumerations_ga69838990f93c3301289776790e4fc0e0.html#gga69838990f93c3301289776790e4fc0e0acd203ccd68b84de1c5df8fd890e104e0", null ],
+      [ "CA1", "group___enumerations_ga69838990f93c3301289776790e4fc0e0.html#gga69838990f93c3301289776790e4fc0e0ac93bf9a243a391a65da5b60116ee9a5c", null ],
+      [ "CA2", "group___enumerations_ga69838990f93c3301289776790e4fc0e0.html#gga69838990f93c3301289776790e4fc0e0a3702f3bfbd91df0d6105cbd8b8d8b963", null ],
+      [ "CB1", "group___enumerations_ga69838990f93c3301289776790e4fc0e0.html#gga69838990f93c3301289776790e4fc0e0ac479bbda96996453098aaa0687a9197e", null ],
+      [ "CB2", "group___enumerations_ga69838990f93c3301289776790e4fc0e0.html#gga69838990f93c3301289776790e4fc0e0a96d495d6079a5d50e1b6bc3fc9255f09", null ]
     ] ],
     [ "VirtualKey", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#gad0e6e31d5953384be4ea987eb3923e02", [
       [ "VK_NONE", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02acf5be65ce657a8918912d7751a8d6b06", null ],
@@ -297,8 +334,7 @@ var group___enumerations =
       [ "VK_LGUI", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aafe11fd78fa4f908291ee69aed38c96c", null ],
       [ "VK_RGUI", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a72addb7597baf0807bf3726fcd3eb6e2", null ],
       [ "VK_ESCAPE", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a292abb1d79755a30f0316d7b13478f98", null ],
-      [ "VK_PRINTSCREEN1", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a60e6329fe3371c76d96749e9cc766bd9", null ],
-      [ "VK_PRINTSCREEN2", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a2ea901cf9c58cb90854f7e6dc8a15d0e", null ],
+      [ "VK_PRINTSCREEN", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a0181eb77776b1cdc4d6bbf10ddc132fc", null ],
       [ "VK_SYSREQ", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a2911995849a379119007a3432d01d6e7", null ],
       [ "VK_INSERT", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02affe38fa10d133342bae3f69f49929a84", null ],
       [ "VK_KP_INSERT", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ad79bc3cd7115d844622174609074d4f7", null ],
@@ -345,53 +381,69 @@ var group___enumerations =
       [ "VK_F12", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a0587819039d24d9780c51ee62538e031", null ],
       [ "VK_GRAVE_a", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a1e8b73feccf4113c58c0fe6a31b8b8a4", null ],
       [ "VK_GRAVE_e", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a006a65dbd27c73fd8bea4026c2696a70", null ],
-      [ "VK_ACUTE_e", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a56af68ece013b31b6a93e4cd6af013a9", null ],
       [ "VK_GRAVE_i", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02afb746ee7a0fbaa0616a6f65ff57af1b1", null ],
       [ "VK_GRAVE_o", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a5fea34f9fa24a69b9041290dde273f5b", null ],
       [ "VK_GRAVE_u", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02abc16dee1594e1037b9b0ce5bf948b76b", null ],
-      [ "VK_CEDILLA_c", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a3aab719a5c4abd3dc1ddc2e790c36984", null ],
-      [ "VK_ESZETT", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a1c35c7011f425c49a7e96c22a2afa652", null ],
-      [ "VK_UMLAUT_u", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aa2ff2548819e4cc7d81f1d859995c7d4", null ],
-      [ "VK_UMLAUT_o", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ab8080072b1eaf37d4dca8fb10e23da60", null ],
-      [ "VK_UMLAUT_a", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a3c222714aa65b3273ea5a66bb90d7006", null ],
-      [ "VK_CEDILLA_C", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a9c0feb1eb1db141ca4a808b3af644a89", null ],
-      [ "VK_TILDE_n", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a9aa311af6bf1efa3d378ab5db176b16b", null ],
-      [ "VK_TILDE_N", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aa196094846a399e5114c4bff92995f88", null ],
-      [ "VK_UPPER_a", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a2c7c585a118a3a1abbe1db9587bde828", null ],
+      [ "VK_GRAVE_y", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a0b2293e7aacb193170100eee1e620ca9", null ],
       [ "VK_ACUTE_a", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a4ccbcb1eb91a4dac479e8996b560c81a", null ],
+      [ "VK_ACUTE_e", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a56af68ece013b31b6a93e4cd6af013a9", null ],
       [ "VK_ACUTE_i", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a6dc2cf5f28434f85d628321e6822f082", null ],
       [ "VK_ACUTE_o", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ac48b46c3753b5b8278a1d8dc24ad3ee0", null ],
       [ "VK_ACUTE_u", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02af2c09ed1b3cd70f30c146f984c9530f2", null ],
-      [ "VK_UMLAUT_i", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ae7f82019c0da78028678976161b8c8d6", null ],
-      [ "VK_EXCLAIM_INV", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02af69b75d09b7677a84a7d0ea527c70b4f", null ],
-      [ "VK_QUESTION_INV", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a6a41c8269ff3a316789a719869afec66", null ],
-      [ "VK_ACUTE_A", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a4b278f602089bd3df64c65403d2164de", null ],
-      [ "VK_ACUTE_E", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aa5c704c2e4c7d1ee0d0296da4dffcb3b", null ],
-      [ "VK_ACUTE_I", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aaf9150f98c72ca9e9129d5ceb843720c", null ],
-      [ "VK_ACUTE_O", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a74720ca7c371b8763c8b247dc0d51983", null ],
-      [ "VK_ACUTE_U", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ad36fe503ef6d6f73c68c0b1a7c0f1543", null ],
+      [ "VK_ACUTE_y", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02adf2cab9877a6914807d3075df8bdf6da", null ],
       [ "VK_GRAVE_A", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a6a6813b1b6ac0d65db13fa8342318329", null ],
       [ "VK_GRAVE_E", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a2d88e5c4830437c519f09adf0671b20c", null ],
       [ "VK_GRAVE_I", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a197b3b0e372b991ba05d99cc67ec621e", null ],
       [ "VK_GRAVE_O", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aa6f35796bde7a8f0835685725e8642ac", null ],
       [ "VK_GRAVE_U", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a1e03956d700d1902ff9d2574585adbd6", null ],
-      [ "VK_INTERPUNCT", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ad145ff3542eaa6c526bf81b8a4a53c1f", null ],
-      [ "VK_DIAERESIS", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a7ffdc444832c0c800da927af3b20d64a", null ],
+      [ "VK_GRAVE_Y", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a1abc94e1a71f2e87b64bdf845e4ff118", null ],
+      [ "VK_ACUTE_A", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a4b278f602089bd3df64c65403d2164de", null ],
+      [ "VK_ACUTE_E", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aa5c704c2e4c7d1ee0d0296da4dffcb3b", null ],
+      [ "VK_ACUTE_I", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aaf9150f98c72ca9e9129d5ceb843720c", null ],
+      [ "VK_ACUTE_O", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a74720ca7c371b8763c8b247dc0d51983", null ],
+      [ "VK_ACUTE_U", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ad36fe503ef6d6f73c68c0b1a7c0f1543", null ],
+      [ "VK_ACUTE_Y", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a70e551c59ddb777c6a31ed3d537cb67e", null ],
+      [ "VK_UMLAUT_a", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a3c222714aa65b3273ea5a66bb90d7006", null ],
       [ "VK_UMLAUT_e", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a308a28e06a3057d0df6801a031a98135", null ],
+      [ "VK_UMLAUT_i", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ae7f82019c0da78028678976161b8c8d6", null ],
+      [ "VK_UMLAUT_o", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ab8080072b1eaf37d4dca8fb10e23da60", null ],
+      [ "VK_UMLAUT_u", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aa2ff2548819e4cc7d81f1d859995c7d4", null ],
+      [ "VK_UMLAUT_y", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aa900cbb1d0f0eaeb19bb9e149a92ab42", null ],
       [ "VK_UMLAUT_A", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a47322b8986a0c49e6ea6a6b3403bf8b3", null ],
       [ "VK_UMLAUT_E", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ac95cfa3c0d3de694912e88953c9d750d", null ],
       [ "VK_UMLAUT_I", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a6b81c5f7d79eed028fa32da5448adc83", null ],
       [ "VK_UMLAUT_O", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a58eb8c1b58164bf53c08f4feab05dc1f", null ],
       [ "VK_UMLAUT_U", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a573df72d032f491c1a4170c2e211fcbe", null ],
+      [ "VK_UMLAUT_Y", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ae040df0f0b16ea8a0af33e2f2a4db59c", null ],
       [ "VK_CARET_a", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02abf34fbbf558b2b2ff87464658d81581f", null ],
       [ "VK_CARET_e", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a4fd39c00664141618768333cffae5a69", null ],
       [ "VK_CARET_i", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02add4b8315abda9a50401be464a1c85060", null ],
       [ "VK_CARET_o", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a157b2e8539488a12ced93c282870731b", null ],
       [ "VK_CARET_u", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a7c33cb57a15b8f4da3b474c883394dca", null ],
+      [ "VK_CARET_y", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a8a27204c695b17243d7f6e66361e71d3", null ],
       [ "VK_CARET_A", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a05dff1538213480ca69c543b1e8ad406", null ],
       [ "VK_CARET_E", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aa25a81fdcaedc350f498b1646b580112", null ],
       [ "VK_CARET_I", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a5fee424466feade4c10c540200bde1e9", null ],
       [ "VK_CARET_O", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a8ec3804bfb404833d93119073bf7006d", null ],
-      [ "VK_CARET_U", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a2ab50922b693792827e3a542ee839c84", null ]
+      [ "VK_CARET_U", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a2ab50922b693792827e3a542ee839c84", null ],
+      [ "VK_CARET_Y", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aadfa7415d98ee8f94b8740f509288eeb", null ],
+      [ "VK_CEDILLA_c", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a3aab719a5c4abd3dc1ddc2e790c36984", null ],
+      [ "VK_CEDILLA_C", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a9c0feb1eb1db141ca4a808b3af644a89", null ],
+      [ "VK_TILDE_a", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a31b23703064bb78bf497fb9399d6f948", null ],
+      [ "VK_TILDE_o", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ac5d1713953854df4acd90b075184afb3", null ],
+      [ "VK_TILDE_n", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a9aa311af6bf1efa3d378ab5db176b16b", null ],
+      [ "VK_TILDE_A", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aff7f0a61f7a199439ee0bef5ac736275", null ],
+      [ "VK_TILDE_O", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a83a55758c81ba85f435efb3036801e10", null ],
+      [ "VK_TILDE_N", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aa196094846a399e5114c4bff92995f88", null ],
+      [ "VK_UPPER_a", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a2c7c585a118a3a1abbe1db9587bde828", null ],
+      [ "VK_ESZETT", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a1c35c7011f425c49a7e96c22a2afa652", null ],
+      [ "VK_EXCLAIM_INV", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02af69b75d09b7677a84a7d0ea527c70b4f", null ],
+      [ "VK_QUESTION_INV", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a6a41c8269ff3a316789a719869afec66", null ],
+      [ "VK_INTERPUNCT", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02ad145ff3542eaa6c526bf81b8a4a53c1f", null ],
+      [ "VK_DIAERESIS", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a7ffdc444832c0c800da927af3b20d64a", null ],
+      [ "VK_SQUARE", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aedc115d80abdb63b858de48fa34d19b2", null ],
+      [ "VK_CURRENCY", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a84a801eaf0d418321b6f26085ac145c1", null ],
+      [ "VK_MU", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02a31355f4fa8d2c9e8974c8490725c6a71", null ],
+      [ "VK_ASCII", "group___enumerations_gad0e6e31d5953384be4ea987eb3923e02.html#ggad0e6e31d5953384be4ea987eb3923e02aeb012bdd9dc9790e9f0bc8597dfe1ec6", null ]
     ] ]
 ];

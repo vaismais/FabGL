@@ -3,7 +3,11 @@
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -84,6 +88,8 @@ static inline __attribute__((always_inline)) void VGA8_SETPIXEL(int x, int y, in
 #define VGA8_INVERT_PIXEL(x, y)             VGA8_INVERTPIXELINROW((uint8_t*)VGA8Controller::s_viewPort[(y)], (x))
 
 
+#define VGA8_COLUMNSQUANTUM 16
+
 
 
 /*************************************************************************************/
@@ -96,7 +102,7 @@ VGA8Controller * VGA8Controller::s_instance = nullptr;
 
 
 VGA8Controller::VGA8Controller()
-  : VGAPalettedController(VGA8_LinesCount, NativePixelFormat::PALETTE8, 8, 3, ISRHandler)
+  : VGAPalettedController(VGA8_LinesCount, VGA8_COLUMNSQUANTUM, NativePixelFormat::PALETTE8, 8, 3, ISRHandler)
 {
   s_instance = this;
   m_packedPaletteIndexPair_to_signals = (uint16_t *) heap_caps_malloc(256 * sizeof(uint16_t), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
@@ -398,6 +404,12 @@ void VGA8Controller::rawDrawBitmap_RGBA8888(int destX, int destY, Bitmap const *
 }
 
 
+void VGA8Controller::directSetPixel(int x, int y, int value)
+{
+  VGA8_SETPIXEL(x, y, value);
+}
+
+
 void IRAM_ATTR VGA8Controller::ISRHandler(void * arg)
 {
   #if FABGLIB_VGAXCONTROLLER_PERFORMANCE_CHECK
@@ -468,7 +480,7 @@ void IRAM_ATTR VGA8Controller::ISRHandler(void * arg)
 
     s_scanLine += VGA8_LinesCount / 2;
 
-    if (scanLine >= height && !ctrl->m_primitiveProcessingSuspended && spi_flash_cache_enabled()) {
+    if (scanLine >= height && !ctrl->m_primitiveProcessingSuspended && spi_flash_cache_enabled() && ctrl->m_primitiveExecTask) {
       // vertical sync, unlock primitive execution task
       // warn: don't use vTaskSuspendAll() in primitive drawing, otherwise vTaskNotifyGiveFromISR may be blocked and screen will flick!
       vTaskNotifyGiveFromISR(ctrl->m_primitiveExecTask, NULL);

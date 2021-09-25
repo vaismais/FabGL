@@ -3,7 +3,11 @@
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -18,7 +22,6 @@
   You should have received a copy of the GNU General Public License
   along with FabGL.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 
 
 #include <alloca.h>
@@ -76,6 +79,7 @@ static inline __attribute__((always_inline)) void VGA16_SETPIXEL(int x, int y, i
 #define VGA16_INVERT_PIXEL(x, y)             VGA16_INVERTPIXELINROW((uint8_t*)VGA16Controller::s_viewPort[(y)], (x))
 
 
+#define VGA16_COLUMNSQUANTUM 16
 
 
 /*************************************************************************************/
@@ -87,7 +91,7 @@ VGA16Controller * VGA16Controller::s_instance = nullptr;
 
 
 VGA16Controller::VGA16Controller()
-  : VGAPalettedController(VGA16_LinesCount, NativePixelFormat::PALETTE16, 2, 1, ISRHandler)
+  : VGAPalettedController(VGA16_LinesCount, VGA16_COLUMNSQUANTUM, NativePixelFormat::PALETTE16, 2, 1, ISRHandler)
 {
   s_instance = this;
 }
@@ -516,7 +520,7 @@ void IRAM_ATTR VGA16Controller::ISRHandler(void * arg)
 
     s_scanLine += VGA16_LinesCount / 2;
 
-    if (scanLine >= height && !ctrl->m_primitiveProcessingSuspended && spi_flash_cache_enabled()) {
+    if (scanLine >= height && !ctrl->m_primitiveProcessingSuspended && spi_flash_cache_enabled() && ctrl->m_primitiveExecTask) {
       // vertical sync, unlock primitive execution task
       // warn: don't use vTaskSuspendAll() in primitive drawing, otherwise vTaskNotifyGiveFromISR may be blocked and screen will flick!
       vTaskNotifyGiveFromISR(ctrl->m_primitiveExecTask, NULL);

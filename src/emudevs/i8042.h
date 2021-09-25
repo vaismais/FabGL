@@ -1,9 +1,13 @@
 /*
-  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
+  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -42,10 +46,14 @@ public:
 
   void init();
 
-  void setCallbacks(void * context, InterruptCallback keyboardInterrupt, InterruptCallback mouseInterrupt) {
+  void reset();
+
+  void setCallbacks(void * context, InterruptCallback keyboardInterrupt, InterruptCallback mouseInterrupt, InterruptCallback reset, InterruptCallback sysReq) {
     m_context           = context;
     m_keyboardInterrupt = keyboardInterrupt;
     m_mouseInterrupt    = mouseInterrupt;
+    m_reset             = reset;
+    m_sysReq            = sysReq;
   }
 
   void tick();
@@ -64,6 +72,7 @@ private:
   void updateCommandByte(uint8_t newValue);
   bool trigKeyboardInterrupt();
   bool trigMouseInterrupt();
+  void checkSysReq(int scode2);
 
   PS2Controller     m_PS2Controller;
   Keyboard *        m_keyboard;
@@ -72,6 +81,8 @@ private:
   void *            m_context;
   InterruptCallback m_keyboardInterrupt;
   InterruptCallback m_mouseInterrupt;
+  InterruptCallback m_reset;
+  InterruptCallback m_sysReq;
 
   uint8_t           m_STATUS;
   uint8_t           m_DBBOUT;

@@ -27,6 +27,7 @@ var fabui_8h =
     [ "uiLabel", "classfabgl_1_1ui_label.html", "classfabgl_1_1ui_label" ],
     [ "uiLabelStyle", "structfabgl_1_1ui_label_style.html", "structfabgl_1_1ui_label_style" ],
     [ "uiListBox", "classfabgl_1_1ui_list_box.html", "classfabgl_1_1ui_list_box" ],
+    [ "uiListBoxProps", "structfabgl_1_1ui_list_box_props.html", "structfabgl_1_1ui_list_box_props" ],
     [ "uiListBoxStyle", "structfabgl_1_1ui_list_box_style.html", "structfabgl_1_1ui_list_box_style" ],
     [ "uiMouseEventInfo", "structfabgl_1_1ui_mouse_event_info.html", "structfabgl_1_1ui_mouse_event_info" ],
     [ "uiObject", "classfabgl_1_1ui_object.html", "classfabgl_1_1ui_object" ],
@@ -35,6 +36,9 @@ var fabui_8h =
     [ "uiPaintBoxStyle", "structfabgl_1_1ui_paint_box_style.html", "structfabgl_1_1ui_paint_box_style" ],
     [ "uiPanel", "classfabgl_1_1ui_panel.html", "classfabgl_1_1ui_panel" ],
     [ "uiPanelStyle", "structfabgl_1_1ui_panel_style.html", "structfabgl_1_1ui_panel_style" ],
+    [ "uiProgressBar", "classfabgl_1_1ui_progress_bar.html", "classfabgl_1_1ui_progress_bar" ],
+    [ "uiProgressBarProps", "structfabgl_1_1ui_progress_bar_props.html", "structfabgl_1_1ui_progress_bar_props" ],
+    [ "uiProgressBarStyle", "structfabgl_1_1ui_progress_bar_style.html", "structfabgl_1_1ui_progress_bar_style" ],
     [ "uiScrollableControl", "classfabgl_1_1ui_scrollable_control.html", "classfabgl_1_1ui_scrollable_control" ],
     [ "uiScrollableControlStyle", "structfabgl_1_1ui_scrollable_control_style.html", "structfabgl_1_1ui_scrollable_control_style" ],
     [ "uiSlider", "classfabgl_1_1ui_slider.html", "classfabgl_1_1ui_slider" ],
@@ -53,6 +57,11 @@ var fabui_8h =
     [ "uiCheckBoxKind", "fabui_8h.html#gacfde9a9ea22383d7dab2856f9319bec9", [
       [ "CheckBox", "fabui_8h.html#ggacfde9a9ea22383d7dab2856f9319bec9a7ea0f1332ade5b23b34502a3bfe715a2", null ],
       [ "RadioButton", "fabui_8h.html#ggacfde9a9ea22383d7dab2856f9319bec9accf0503df958552a245a3593e1063cd8", null ]
+    ] ],
+    [ "uiHAlign", "fabui_8h.html#ga878ce849208099631ecb3f931c2d0e11", [
+      [ "Left", "fabui_8h.html#gga878ce849208099631ecb3f931c2d0e11a945d5e233cf7d6240f6b783b36a374ff", null ],
+      [ "Right", "fabui_8h.html#gga878ce849208099631ecb3f931c2d0e11a92b09c7c48c520c3c55e497875da437c", null ],
+      [ "Center", "fabui_8h.html#gga878ce849208099631ecb3f931c2d0e11a4f1f6016fc9f3f2353c0cc7c67b292bd", null ]
     ] ],
     [ "uiMessageBoxIcon", "fabui_8h.html#gaae85628862e3db5a13e7c21a90589c1d", [
       [ "None", "fabui_8h.html#ggaae85628862e3db5a13e7c21a90589c1da6adf97f83acf6453d4a6a4b1070f3754", null ],

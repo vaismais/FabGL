@@ -3,7 +3,11 @@
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -72,22 +76,23 @@
  * - - -
  *
  * Main classes of FabGL library:
- *    * fabgl::VGAController, device driver for VGA bitmapped output.
- *    * fabgl::VGA2Controller, device driver for VGA 2 colors bitmapped output (low RAM requirements, CPU intensive).
- *    * fabgl::VGA4Controller, device driver for VGA 4 colors bitmapped output (low RAM requirements, CPU intensive).
- *    * fabgl::VGA8Controller, device driver for VGA 8 colors bitmapped output (low RAM requirements, CPU intensive).
- *    * fabgl::VGA16Controller, device driver for VGA 16 colors bitmapped output (low RAM requirements, CPU intensive).
- *    * fabgl::VGATextController, device driver for VGA textual output (low RAM requirements, CPU intensive).
- *    * fabgl::SSD1306Controller, device driver for SSD1306 based OLED displays.
- *    * fabgl::ST7789Controller, device driver for ST7789 based TFT displays.
- *    * fabgl::ILI9341Controller, device driver for ILI9341 based TFT displays.
- *    * fabgl::Canvas, that provides a set of drawing primitives (lines, rectangles, text...).
- *    * fabgl::Terminal, that emulates an ANSI/VT100/VT102/etc and up terminal (look at @ref vttest "vttest score").
- *    * fabgl::Keyboard, that controls a PS2 keyboard and translates scancodes to virtual keys or ASCII/ANSI codes.
- *    * fabgl::Mouse, that controls a PS2 mouse.
- *    * fabgl::Scene abstract class that handles sprites, timings and collision detection.
+ *    * fabgl::VGAController, device driver for VGA bitmapped output
+ *    * fabgl::VGA2Controller, device driver for VGA 2 colors bitmapped output (low RAM requirements, CPU intensive)
+ *    * fabgl::VGA4Controller, device driver for VGA 4 colors bitmapped output (low RAM requirements, CPU intensive)
+ *    * fabgl::VGA8Controller, device driver for VGA 8 colors bitmapped output (low RAM requirements, CPU intensive)
+ *    * fabgl::VGA16Controller, device driver for VGA 16 colors bitmapped output (low RAM requirements, CPU intensive)
+ *    * fabgl::VGATextController, device driver for VGA textual output (low RAM requirements, CPU intensive)
+ *    * fabgl::SSD1306Controller, device driver for SSD1306 based OLED displays
+ *    * fabgl::ST7789Controller, device driver for ST7789 based TFT displays
+ *    * fabgl::ILI9341Controller, device driver for ILI9341 based TFT displays
+ *    * fabgl::Canvas, that provides a set of drawing primitives (lines, rectangles, text...)
+ *    * fabgl::Terminal, that emulates an ANSI/VT100/VT102/etc and up terminal (look at @ref vttest "vttest score")
+ *    * fabgl::Keyboard, that controls a PS2 keyboard and translates scancodes to virtual keys or ASCII/ANSI codes
+ *    * fabgl::Mouse, that controls a PS2 mouse
+ *    * fabgl::Scene abstract class that handles sprites, timings and collision detection
  *    * fabgl::uiApp base class to build Graphical User Interface applications
- *    * fabgl::SoundGenerator to generate sound and music.
+ *    * fabgl::SoundGenerator to generate sound and music
+ *    * fabgl::InputBox to generate simple UI wizards
  *
  * Devices emulation classes:
  *    * fabgl::Z80, Zilog Z80 CPU emulator
@@ -98,6 +103,7 @@
  * Other classes:
  *    * fabgl::I2C, thread safe I2C (Wire) class
  *    * fabgl::DS3231, Real Time Clock driver which uses the thread safe fabgl::I2C library
+ *    * fabgl::MCP23S17, 16 bit SPI port expander
  *
  * See @ref confVGA "VGA output" for VGA connection sample schema.
  *
@@ -108,63 +114,76 @@
  *
  * - - -
  * <CENTER> Installation Tutorial </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/8OTaPQlSTas?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/8OTaPQlSTas?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * - - -
+ * <CENTER> @link VGA/PCEmulator/PCEmulator.ino IBM PC Emulator Example @endlink </CENTER>
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/3I1U2nEoxIQ?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/SpaceInvaders/SpaceInvaders.ino Space Invaders Example @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/LL8J7tjxeXA?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/LL8J7tjxeXA?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/GraphicalUserInterface/GraphicalUserInterface.ino Graphical User Interface - GUI Example @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/84ytGdiOih0?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/84ytGdiOih0?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/Audio/Audio.ino Audio output demo @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/RQtKFgU7OYI?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/RQtKFgU7OYI?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/AnsiTerminal/AnsiTerminal.ino Serial terminal connected to MBC2 Z80 board @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/Ww_pH_ZOLqU?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/Ww_pH_ZOLqU?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/SimpleTerminalOut/SimpleTerminalOut.ino Simple Terminal Out Example @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/AmXN0SIRqqU?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/AmXN0SIRqqU?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/Altair8800/Altair8800.ino Altair 8800 Emulator @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/y0opVifEyS8?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/y0opVifEyS8?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/VIC20/VIC20.ino Commodore VIC20 Emulator @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/ZW427HVWYys?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/ZW427HVWYys?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/NetworkTerminal/NetworkTerminal.ino Network Terminal Example @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/n5c27-y5tm4?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/n5c27-y5tm4?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/ModelineStudio/ModelineStudio.ino Modeline Studio Example @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/Urp0rPukjzE?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/Urp0rPukjzE?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/LoopbackTerminal/LoopbackTerminal.ino Loopback Terminal Example @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/hQhU5hgWdcU?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/hQhU5hgWdcU?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/DoubleBuffer/DoubleBuffer.ino Double Buffering Example @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/TRQcIiWQCJw?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/TRQcIiWQCJw?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  * <CENTER> @link VGA/CollisionDetection/CollisionDetection.ino Collision Detection Example @endlink </CENTER>
- * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/q3OPSq4HhDE?rel=0&loop=1&autoplay=1&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/q3OPSq4HhDE?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
+ * - - -
+ * <CENTER> @link VGA/MultitaskingCPM/MultitaskingCPM.ino Multitasking CP/M Plus Example @endlink </CENTER>
+ * @htmlonly <div align="center"> <iframe width="560" height="349" src="http://www.youtube.com/embed/3UevsxMQZ5w?rel=0&loop=1&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen align="middle"> </iframe> </div> @endhtmlonly
  * - - -
  *
- * Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com> <br>
- * Copyright (c) 2019-2021 Fabrizio Di Vittorio. <br>
- * All rights reserved. <br>
  *
- * This file is part of FabGL Library.
  *
- * FabGL is free software: you can redistribute it and/or modify<br>
- * it under the terms of the GNU General Public License as published by<br>
- * the Free Software Foundation, either version 3 of the License, or<br>
- * (at your option) any later version.<br>
+ * Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
+ * Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+ * All rights reserved.
  *
- * FabGL is distributed in the hope that it will be useful,<br>
- * but WITHOUT ANY WARRANTY; without even the implied warranty of<br>
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the<br>
- * GNU General Public License for more details.<br>
  *
- * You should have received a copy of the GNU General Public License<br>
- * along with FabGL.  If not, see <http://www.gnu.org/licenses/>.<br>
+ * * Please contact fdivitto2013@gmail.com if you need a commercial license.
+ *
+ *
+ * * This library and related software is available under GPL v3.
+ *
+ * FabGL is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * FabGL is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with FabGL.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 
@@ -253,12 +272,14 @@
  * @example VGA/MouseOnScreen/MouseOnScreen.ino PS/2 mouse and mouse pointer on screen
  * @example VGA/MultitaskingCPM/MultitaskingCPM.ino Multitasking - Multisession CP/M 3 compatible system. Supports directories and FAT32 file system with SD Cards.
  * @example VGA/NetworkTerminal/NetworkTerminal.ino Network VT/ANSI Terminal
+ * @example VGA/PCEmulator/PCEmulator.ino A i8086 based IBM PC emulator (runs FreeDOS, MS-DOS, CPM86, Linux-ELK, Windows 3.0)
  * @example VGA/SimpleTerminalOut/SimpleTerminalOut.ino Simple terminal - output only
  * @example VGA/SimpleTextTerminalOut/SimpleTextTerminalOut.ino Simple terminal text-only mode - output only
  * @example VGA/Songs/Songs.ino Music and sound demo, from Carles Oriol
  * @example VGA/SpaceInvaders/SpaceInvaders.ino Space invaders full game
  * @example VGA/Sprites/Sprites.ino Simple sprites animation
  * @example VGA/VIC20/VIC20.ino Commodore VIC20 Emulator
+ * @example VGA/InputBox/InputBox.ino InputBox UI wizard
  *
  * @example SSD1306_OLED/128x32/CollisionDetection/CollisionDetection.ino fabgl::Scene, sprites and collision detection example
  * @example SSD1306_OLED/128x32/SimpleTerminalOut/SimpleTerminalOut.ino Simple terminal - output only
@@ -281,7 +302,7 @@
 
 
 /*!
-    \defgroup Enumerations
+    \defgroup Enumerations Enumerations
         Enumeration types
 */
 
@@ -299,6 +320,8 @@
 #include "dispdrivers/vga8controller.h"
 #include "dispdrivers/vga16controller.h"
 #include "dispdrivers/vgadirectcontroller.h"
+#include "fabui.h"
+#include "inputbox.h"
 #include "comdrivers/ps2controller.h"
 #include "comdrivers/tsi2c.h"
 #include "devdrivers/keyboard.h"
@@ -348,6 +371,7 @@ using fabgl::uiScrollableControlStyle;
 using fabgl::uiButtonStyle;
 using fabgl::uiTextEditStyle;
 using fabgl::uiLabelStyle;
+using fabgl::uiHAlign;
 using fabgl::uiImageStyle;
 using fabgl::uiPanelStyle;
 using fabgl::uiPaintBoxStyle;
@@ -358,6 +382,7 @@ using fabgl::uiSliderStyle;
 using fabgl::uiColorListBox;
 using fabgl::uiColorBox;
 using fabgl::uiColorComboBox;
+using fabgl::uiProgressBar;
 using fabgl::SoundGenerator;
 using fabgl::uiMessageBoxResult;
 using fabgl::SineWaveformGenerator;
@@ -395,5 +420,7 @@ using fabgl::CharStyle;
 using fabgl::TerminalTransition;
 using fabgl::SupportedLayouts;
 using fabgl::CoreUsage;
+using fabgl::InputResult;
+using fabgl::InputBox;
 
 

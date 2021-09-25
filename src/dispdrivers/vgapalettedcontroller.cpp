@@ -3,7 +3,11 @@
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -64,8 +68,9 @@ volatile int         VGAPalettedController::s_scanLine;
 
 
 
-VGAPalettedController::VGAPalettedController(int linesCount, NativePixelFormat nativePixelFormat, int viewPortRatioDiv, int viewPortRatioMul, intr_handler_t isrHandler)
+VGAPalettedController::VGAPalettedController(int linesCount, int columnsQuantum, NativePixelFormat nativePixelFormat, int viewPortRatioDiv, int viewPortRatioMul, intr_handler_t isrHandler)
   : m_linesCount(linesCount),
+    m_columnsQuantum(columnsQuantum),
     m_nativePixelFormat(nativePixelFormat),
     m_viewPortRatioDiv(viewPortRatioDiv),
     m_viewPortRatioMul(viewPortRatioMul),
@@ -99,6 +104,7 @@ void VGAPalettedController::end()
   if (m_primitiveExecTask) {
     vTaskDelete(m_primitiveExecTask);
     m_primitiveExecTask = nullptr;
+    m_taskProcessingPrimitives = false;
   }
   VGABaseController::end();
 }
@@ -111,10 +117,11 @@ void VGAPalettedController::suspendBackgroundPrimitiveExecution()
     ;
 }
 
-// make sure view port height is divisible by VGA16_LinesCount
+// make sure view port height is divisible by m_linesCount, view port width is divisible by m_columnsQuantum
 void VGAPalettedController::checkViewPortSize()
 {
   m_viewPortHeight &= ~(m_linesCount - 1);
+  m_viewPortWidth  &= ~(m_columnsQuantum - 1);
 }
 
 

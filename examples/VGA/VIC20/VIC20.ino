@@ -1,9 +1,13 @@
 /*
-  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
+  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -151,9 +155,8 @@ Preferences preferences;
 // copies embedded programs into SPIFFS/SDCard
 void copyEmbeddedPrograms()
 {
-  auto dir = FileBrowser();
-  dir.setDirectory(basepath);
-  if (!dir.exists(EMBDIR)) {
+  FileBrowser dir(basepath);
+  if (!dir.exists(EMBDIR, false)) {
     // there isn't a EMBDIR folder, create and populate it
     dir.makeDirectory(EMBDIR);
     dir.changeDirectory(EMBDIR);
@@ -328,7 +331,7 @@ class Menu : public uiApp {
     // programs list
     fileBrowser = new uiFileBrowser(rootWindow(), Point(5, 10), Size(140, 290), true, STYLE_FILEBROWSER);
     fileBrowser->setDirectory(basepath);  // set absolute path
-    fileBrowser->changeDirectory( fileBrowser->content().exists(DOWNDIR) ? DOWNDIR : EMBDIR ); // set relative path
+    fileBrowser->changeDirectory( fileBrowser->content().exists(DOWNDIR, false) ? DOWNDIR : EMBDIR ); // set relative path
     fileBrowser->onChange = [&]() {
       setSelectedProgramConf();
     };
@@ -547,7 +550,7 @@ class Menu : public uiApp {
 
     // setup user directory
     machine->fileBrowser()->setDirectory(basepath);
-    if (!machine->fileBrowser()->exists(USERDIR))
+    if (!machine->fileBrowser()->exists(USERDIR, false))
       machine->fileBrowser()->makeDirectory(USERDIR);
     machine->fileBrowser()->changeDirectory(USERDIR);
 
@@ -697,7 +700,7 @@ class Menu : public uiApp {
     }
     WiFi.begin(SSID, psw);
     for (int i = 0; i < 2 && WiFi.status() != WL_CONNECTED; ++i) {
-      for (int j = 0; j < 8 && WiFi.status() == WL_DISCONNECTED; ++j)
+      for (int j = 0; j < 16 && WiFi.status() != WL_CONNECTED; ++j)
         delay(1000);
       WiFi.reconnect();
     }
@@ -736,7 +739,8 @@ class Menu : public uiApp {
           int c = stream->readBytes(dest, fabgl::imin(bufspace, size));
           dest += c;
           bufspace -= c;
-        }
+        } else
+          break;
       }
     }
     *dest = 0;
@@ -780,7 +784,7 @@ class Menu : public uiApp {
   bool downloadURL(char const * URL, char const * filename)
   {
     FileBrowser & dir = fileBrowser->content();
-    if (dir.exists(filename)) {
+    if (dir.exists(filename, false)) {
       return true;
     }
     bool success = false;

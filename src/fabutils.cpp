@@ -3,7 +3,11 @@
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -22,13 +26,13 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <dirent.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <math.h>
 
 #include "ff.h"
 #include "diskio.h"
+#include "vfs_api.h"
 #include "esp_vfs_fat.h"
 #include "esp_task_wdt.h"
 #include "driver/sdspi_host.h"
@@ -439,6 +443,14 @@ void StringList::copyFrom(StringList const & src)
 }
 
 
+void StringList::copySelectionMapFrom(StringList const & src)
+{
+  int maskLen = (31 + m_allocated) / 32;
+  for (int i = 0; i < maskLen; ++i)
+    m_selMap[i] = src.m_selMap[i];
+}
+
+
 void StringList::checkAllocatedSpace(int requiredItems)
 {
   if (m_allocated < requiredItems) {
@@ -499,6 +511,27 @@ void StringList::append(char const * strlist[], int count)
 }
 
 
+// separator cannot be "0"
+void StringList::appendSepList(char const * strlist, char separator)
+{
+  if (strlist) {
+    takeStrings();
+    char const * start = strlist;
+    while (*start) {
+      auto end = strchr(start, separator);
+      if (!end)
+        end = strchr(start, 0);
+      int len = end - start;
+      char str[len + 1];
+      memcpy(str, start, len);
+      str[len] = 0;
+      insert(m_count, str);
+      start += len + (*end == 0 ? 0 : 1);
+    }
+  }
+}
+
+
 void StringList::set(int index, char const * str)
 {
   if (m_ownStrings) {
@@ -548,6 +581,16 @@ bool StringList::selected(int index)
 }
 
 
+// -1 = no items selected
+int StringList::getFirstSelected()
+{
+  for (int i = 0; i < m_count; ++i)
+    if (selected(i))
+      return i;
+  return -1;
+}
+
+
 void StringList::select(int index, bool value)
 {
   if (value)
@@ -567,18 +610,19 @@ void StringList::select(int index, bool value)
 // FileBrowser
 
 
-char const * FileBrowser::s_SPIFFSMountPath;
-bool         FileBrowser::s_SPIFFSMounted = false;
-size_t       FileBrowser::s_SPIFFSMaxFiles;
+char const *   FileBrowser::s_SPIFFSMountPath;
+bool           FileBrowser::s_SPIFFSMounted = false;
+size_t         FileBrowser::s_SPIFFSMaxFiles;
 
-char const * FileBrowser::s_SDCardMountPath;
-bool         FileBrowser::s_SDCardMounted = false;
-size_t       FileBrowser::s_SDCardMaxFiles;
-int          FileBrowser::s_SDCardAllocationUnitSize;
-int8_t       FileBrowser::s_SDCardMISO;
-int8_t       FileBrowser::s_SDCardMOSI;
-int8_t       FileBrowser::s_SDCardCLK;
-int8_t       FileBrowser::s_SDCardCS;
+char const *   FileBrowser::s_SDCardMountPath;
+bool           FileBrowser::s_SDCardMounted = false;
+size_t         FileBrowser::s_SDCardMaxFiles;
+int            FileBrowser::s_SDCardAllocationUnitSize;
+int8_t         FileBrowser::s_SDCardMISO;
+int8_t         FileBrowser::s_SDCardMOSI;
+int8_t         FileBrowser::s_SDCardCLK;
+int8_t         FileBrowser::s_SDCardCS;
+sdmmc_card_t * FileBrowser::s_SDCard = nullptr;
 
 
 
@@ -590,6 +634,13 @@ FileBrowser::FileBrowser()
     m_includeHiddenFiles(false),
     m_namesStorage(nullptr)
 {
+}
+
+
+FileBrowser::FileBrowser(char const * path)
+  : FileBrowser()
+{
+  setDirectory(path);
 }
 
 
@@ -976,7 +1027,7 @@ char * FileBrowser::createTempFilename()
     for (int i = 0; i < FLEN; ++i)
       name[i] = 65 + (rand() % 26);
     sprintf(ret, "%s/%s.TMP", m_dir, name);
-    if (!exists(name))
+    if (!exists(name, false))
       return ret;
   }
 }
@@ -1119,10 +1170,14 @@ bool FileBrowser::format(DriveType driveType, int drive)
 bool FileBrowser::mountSDCard(bool formatOnFail, char const * mountPath, size_t maxFiles, int allocationUnitSize, int MISO, int MOSI, int CLK, int CS)
 {
   switch (getChipPackage()) {
-    case ChipPackage::ESP32D0WDQ5:
     case ChipPackage::ESP32PICOD4:
       MISO = 2;
       MOSI = 12;
+      break;
+    case ChipPackage::ESP32D0WDQ5:
+      MISO = 35;
+      MOSI = 12;
+      break;
     default:
       break;
   }
@@ -1134,19 +1189,59 @@ bool FileBrowser::mountSDCard(bool formatOnFail, char const * mountPath, size_t 
   s_SDCardMOSI               = MOSI;
   s_SDCardCLK                = CLK;
   s_SDCardCS                 = CS;
+  s_SDCardMounted            = false;
 
   sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+  host.slot = HSPI_HOST;
+
+  #if FABGL_ESP_IDF_VERSION <= FABGL_ESP_IDF_VERSION_VAL(3, 3, 5)
+
   sdspi_slot_config_t slot_config = SDSPI_SLOT_CONFIG_DEFAULT();
   slot_config.gpio_miso = int2gpio(MISO);
   slot_config.gpio_mosi = int2gpio(MOSI);
   slot_config.gpio_sck  = int2gpio(CLK);
   slot_config.gpio_cs   = int2gpio(CS);
+
   esp_vfs_fat_sdmmc_mount_config_t mount_config;
   mount_config.format_if_mount_failed = formatOnFail;
-  mount_config.max_files = maxFiles;
-  mount_config.allocation_unit_size = allocationUnitSize;
-  sdmmc_card_t* card;
-  s_SDCardMounted = (esp_vfs_fat_sdmmc_mount(mountPath, &host, &slot_config, &mount_config, &card) == ESP_OK);
+  mount_config.max_files              = maxFiles;
+  mount_config.allocation_unit_size   = allocationUnitSize;
+
+  s_SDCardMounted = (esp_vfs_fat_sdmmc_mount(mountPath, &host, &slot_config, &mount_config, &s_SDCard) == ESP_OK);
+
+  #else
+
+  // slow down SD card. Using ESP32 core 2.0.0 may crash SD subsystem, having VGA output and WiFi enabled
+  // @TODO: check again
+  host.max_freq_khz = 19000;
+
+  spi_bus_config_t bus_cfg = {
+        .mosi_io_num = int2gpio(MOSI),
+        .miso_io_num = int2gpio(MISO),
+        .sclk_io_num = int2gpio(CLK),
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 4000,
+  };
+  auto r = spi_bus_initialize((spi_host_device_t)host.slot, &bus_cfg, 2);
+
+  if (r == ESP_OK || r == ESP_ERR_INVALID_STATE) {  // ESP_ERR_INVALID_STATE, maybe spi_bus_initialize already called
+    sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
+    slot_config.gpio_cs = int2gpio(CS);
+    slot_config.host_id = (spi_host_device_t) host.slot;
+
+    esp_vfs_fat_sdmmc_mount_config_t mount_config;
+    mount_config.format_if_mount_failed = formatOnFail;
+    mount_config.max_files              = maxFiles;
+    mount_config.allocation_unit_size   = allocationUnitSize;
+
+    r = esp_vfs_fat_sdspi_mount(mountPath, &host, &slot_config, &mount_config, &s_SDCard);
+
+    s_SDCardMounted = (r == ESP_OK);
+  }
+
+  #endif
+
   return s_SDCardMounted;
 }
 
@@ -1154,7 +1249,11 @@ bool FileBrowser::mountSDCard(bool formatOnFail, char const * mountPath, size_t 
 void FileBrowser::unmountSDCard()
 {
   if (s_SDCardMounted) {
+    #if FABGL_ESP_IDF_VERSION <= FABGL_ESP_IDF_VERSION_VAL(3, 3, 5)
     esp_vfs_fat_sdmmc_unmount();
+    #else
+    esp_vfs_fat_sdcard_unmount(s_SDCardMountPath, s_SDCard);
+    #endif
     s_SDCardMounted = false;
   }
 }
@@ -1376,6 +1475,8 @@ int CoreUsage::s_busiestCore = FABGLIB_VIDEO_CPUINTENSIVE_TASKS_CORE;
 
 // CoreUsage
 ///////////////////////////////////////////////////////////////////////////////////
+
+
 
 
 }

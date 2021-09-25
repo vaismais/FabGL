@@ -3,7 +3,11 @@
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -65,6 +69,8 @@ void VGABaseController::init()
   m_primitiveProcessingSuspended = 1; // >0 suspended
   m_isr_handle                   = nullptr;
   m_doubleBufferOverDMA          = false;
+  m_viewPort                     = nullptr;
+  m_viewPortMemoryPool[0]        = nullptr;
 
   m_GPIOStream.begin();
 }
@@ -114,16 +120,14 @@ void VGABaseController::begin()
 void VGABaseController::end()
 {
   if (m_DMABuffers) {
+    suspendBackgroundPrimitiveExecution();
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    m_GPIOStream.stop();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
     if (m_isr_handle) {
       esp_intr_free(m_isr_handle);
       m_isr_handle = nullptr;
     }
-    suspendBackgroundPrimitiveExecution();
-    m_GPIOStream.stop();
-
-    // just in case interrupt is still runing
-    vTaskDelay(50 / portTICK_PERIOD_MS);
-
     freeBuffers();
   }
 }
@@ -155,8 +159,10 @@ void VGABaseController::freeViewPort()
     heap_caps_free((void*) *poolPtr);
     *poolPtr = nullptr;
   }
-  heap_caps_free(m_viewPort);
-  m_viewPort = nullptr;
+  if (m_viewPort) {
+    heap_caps_free(m_viewPort);
+    m_viewPort = nullptr;
+  }
   if (isDoubleBuffered())
     heap_caps_free(m_viewPortVisible);
   m_viewPortVisible = nullptr;
@@ -225,7 +231,7 @@ bool VGABaseController::setDMABuffersCount(int buffersCount)
 
 
 // modeline syntax:
-//   "label" clock_mhz hdisp hsyncstart hsyncend htotal vdisp vsyncstart vsyncend vtotal (+HSync | -HSync) (+VSync | -VSync) [DoubleScan | QuadScan] [FrontPorchBegins | SyncBegins | BackPorchBegins | VisibleBegins] [MultiScanBlank]
+//   "label" clock_mhz hdisp hsyncstart hsyncend htotal vdisp vsyncstart vsyncend vtotal [(+HSync | -HSync) (+VSync | -VSync)] [DoubleScan | QuadScan] [FrontPorchBegins | SyncBegins | BackPorchBegins | VisibleBegins] [MultiScanBlank]
 bool VGABaseController::convertModelineToTimings(char const * modeline, VGATimings * timings)
 {
   float freq;
@@ -250,9 +256,9 @@ bool VGABaseController::convertModelineToTimings(char const * modeline, VGATimin
     timings->VSyncLogic     = '-';
     timings->scanCount      = 1;
     timings->multiScanBlack = 0;
-    timings->HStartingBlock = VGAScanStart::FrontPorch;
+    timings->HStartingBlock = VGAScanStart::VisibleArea;
 
-    // get (+HSync | -HSync) (+VSync | -VSync)
+    // get [(+HSync | -HSync) (+VSync | -VSync)]
     char const * pc = modeline + pos;
     for (; *pc; ++pc) {
       if (*pc == '+' || *pc == '-') {
@@ -264,7 +270,8 @@ bool VGABaseController::convertModelineToTimings(char const * modeline, VGATimin
             ++pc;
           break;
         }
-      }
+      } else if (*pc != ' ')
+        break;
     }
 
     // get [DoubleScan | QuadScan] [FrontPorchBegins | SyncBegins | BackPorchBegins | VisibleBegins] [MultiScanBlank]

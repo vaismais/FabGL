@@ -3,7 +3,11 @@
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -56,56 +60,56 @@ void dumpEvent(uiEvent * event)
                                   "UIEVT_TIMER", "UIEVT_DBLCLICK", "UIEVT_DBLCLICK", "UIEVT_EXITMODAL", "UIEVT_DESTROY", "UIEVT_CLOSE",
                                   "UIEVT_QUIT", "UIEVT_CREATE", "UIEVT_CHILDSETFOCUS", "UIEVT_CHILDKILLFOCUS"
                                 };
-  Serial.printf("#%d ", idx++);
-  Serial.write(TOSTR[event->id]);
+  printf("#%d ", idx++);
+  printf(TOSTR[event->id]);
   if (event->dest && event->dest->objectType().uiFrame)
-    Serial.printf(" dst=\"%s\"(%p) ", ((uiFrame*)(event->dest))->title(), event->dest);
+    printf(" dst=\"%s\"(%p) ", ((uiFrame*)(event->dest))->title(), event->dest);
   else
-    Serial.printf(" dst=%p ", event->dest);
+    printf(" dst=%p ", event->dest);
   switch (event->id) {
     case UIEVT_DEBUGMSG:
-      Serial.write(event->params.debugMsg);
+      printf(event->params.debugMsg);
       break;
     case UIEVT_MOUSEMOVE:
-      Serial.printf("X=%d Y=%d", event->params.mouse.status.X, event->params.mouse.status.Y);
+      printf("X=%d Y=%d", event->params.mouse.status.X, event->params.mouse.status.Y);
       break;
     case UIEVT_MOUSEWHEEL:
-      Serial.printf("delta=%d", event->params.mouse.status.wheelDelta);
+      printf("delta=%d", event->params.mouse.status.wheelDelta);
       break;
     case UIEVT_MOUSEBUTTONDOWN:
     case UIEVT_MOUSEBUTTONUP:
     case UIEVT_DBLCLICK:
-      Serial.printf("btn=%d", event->params.mouse.changedButton);
+      printf("btn=%d", event->params.mouse.changedButton);
       break;
     case UIEVT_PAINT:
     case UIEVT_GENPAINTEVENTS:
     case UIEVT_RESHAPEWINDOW:
-      Serial.printf("rect=%d,%d,%d,%d", event->params.rect.X1, event->params.rect.Y1, event->params.rect.X2, event->params.rect.Y2);
+      printf("rect=%d,%d,%d,%d", event->params.rect.X1, event->params.rect.Y1, event->params.rect.X2, event->params.rect.Y2);
       break;
     case UIEVT_SETPOS:
-      Serial.printf("pos=%d,%d", event->params.pos.X, event->params.pos.Y);
+      printf("pos=%d,%d", event->params.pos.X, event->params.pos.Y);
       break;
     case UIEVT_SETSIZE:
-      Serial.printf("size=%d,%d", event->params.size.width, event->params.size.height);
+      printf("size=%d,%d", event->params.size.width, event->params.size.height);
       break;
     case UIEVT_KEYDOWN:
     case UIEVT_KEYUP:
       #ifdef FABGLIB_HAS_VirtualKeyO_STRING
-      Serial.printf("VK=%s ", Keyboard::virtualKeyToString(event->params.key.VK));
-      if (event->params.key.LALT) Serial.write(" +LALT");
-      if (event->params.key.RALT) Serial.write(" +RALT");
-      if (event->params.key.CTRL) Serial.write(" +CTRL");
-      if (event->params.key.SHIFT) Serial.write(" +SHIFT");
-      if (event->params.key.GUI) Serial.write(" +GUI");
+      printf("VK=%s ", Keyboard::virtualKeyToString(event->params.key.VK));
+      if (event->params.key.LALT) printf(" +LALT");
+      if (event->params.key.RALT) printf(" +RALT");
+      if (event->params.key.CTRL) printf(" +CTRL");
+      if (event->params.key.SHIFT) printf(" +SHIFT");
+      if (event->params.key.GUI) printf(" +GUI");
       #endif
       break;
     case UIEVT_TIMER:
-      Serial.printf("handle=%p", event->params.timerHandle);
+      printf("handle=%p", event->params.timerHandle);
       break;
     default:
       break;
   }
-  Serial.write("\n");
+  printf("\n");
 }
 //*/
 
@@ -143,6 +147,8 @@ uiEvtHandler::uiEvtHandler(uiApp * app)
 
 uiEvtHandler::~uiEvtHandler()
 {
+  if (m_app)
+    m_app->killEvtHandlerTimers(this);
 }
 
 
@@ -199,12 +205,12 @@ int uiApp::run(BitmappedDisplayController * displayController, Keyboard * keyboa
 
   m_keyboard = keyboard;
   m_mouse    = mouse;
-  if (PS2Controller::instance()) {
+  if (PS2Controller::initialized()) {
     // get default keyboard and mouse from the PS/2 controller
     if (m_keyboard == nullptr)
-      m_keyboard = PS2Controller::instance()->keyboard();
+      m_keyboard = PS2Controller::keyboard();
     if (m_mouse == nullptr)
-      m_mouse = PS2Controller::instance()->mouse();
+      m_mouse = PS2Controller::mouse();
   }
 
   m_eventsQueue = xQueueCreate(FABGLIB_UI_EVENTS_QUEUE_SIZE, sizeof(uiEvent));
@@ -235,6 +241,8 @@ int uiApp::run(BitmappedDisplayController * displayController, Keyboard * keyboa
   // avoid slow paint on low resolutions
   m_displayController->enableBackgroundPrimitiveTimeout(false);
 
+  m_lastUserActionTimeMS = esp_timer_get_time() / 1000;
+
   showWindow(m_rootWindow, true);
 
   m_activeWindow = m_rootWindow;
@@ -264,6 +272,8 @@ int uiApp::run(BitmappedDisplayController * displayController, Keyboard * keyboa
       }
     }
   }
+
+  killEvtHandlerTimers(this);
 
   showCaret(nullptr);
 
@@ -296,20 +306,34 @@ void uiApp::asyncRunTask(void * arg)
 {
   auto app = (uiApp*)arg;
   app->run(app->m_displayController, app->m_keyboard, app->m_mouse);
+  if (app->m_asyncRunWait)
+    xSemaphoreGive(app->m_asyncRunWait);
   vTaskDelete(NULL);
 }
 
 
-void uiApp::runAsync(BitmappedDisplayController * displayController, int taskStack, Keyboard * keyboard, Mouse * mouse)
+uiApp & uiApp::runAsync(BitmappedDisplayController * displayController, int taskStack, Keyboard * keyboard, Mouse * mouse)
 {
   m_displayController = displayController;
   m_keyboard          = keyboard;
   m_mouse             = mouse;
+  m_asyncRunWait      = nullptr;
 
   if (CoreUsage::busiestCore() == -1)
     xTaskCreate(&asyncRunTask, "", taskStack, this, 5, nullptr);
   else
     xTaskCreatePinnedToCore(&asyncRunTask, "", taskStack, this, 5, nullptr, CoreUsage::quietCore());
+
+  return *this;
+}
+
+
+void uiApp::joinAsyncRun()
+{
+  m_asyncRunWait = xSemaphoreCreateBinary();
+  xSemaphoreTake(m_asyncRunWait, portMAX_DELAY);
+  vSemaphoreDelete(m_asyncRunWait);
+  m_asyncRunWait = nullptr;
 }
 
 
@@ -412,6 +436,8 @@ void uiApp::preprocessMouseEvent(uiEvent * event)
       getEvent(event, -1);
   }
 
+  m_lastUserActionTimeMS = esp_timer_get_time() / 1000;
+
   Point mousePos = Point(event->params.mouse.status.X, event->params.mouse.status.Y);
 
   // search for window under the mouse or mouse capturing window
@@ -469,6 +495,8 @@ void uiApp::preprocessMouseEvent(uiEvent * event)
 
 void uiApp::preprocessKeyboardEvent(uiEvent * event)
 {
+  m_lastUserActionTimeMS = esp_timer_get_time() / 1000;
+
   // keyboard events go to focused window
   if (m_focusedWindow) {
     event->dest = m_focusedWindow;
@@ -766,7 +794,7 @@ bool uiApp::processModalWindowEvents(ModalWindowState * state, int timeout)
       // becomes modal when first message arrives
       m_modalWindow = state->window;
     }
-    if (event.id == UIEVT_EXITMODAL) {
+    if (event.id == UIEVT_EXITMODAL && event.dest == state->window) {
       // clean exit using exitModal() method
       state->modalResult = event.params.modalResult;
       return false;
@@ -834,6 +862,7 @@ void uiApp::timerFunc(TimerHandle_t xTimer)
 uiTimerHandle uiApp::setTimer(uiEvtHandler * dest, int periodMS)
 {
   TimerHandle_t h = xTimerCreate("", pdMS_TO_TICKS(periodMS), pdTRUE, dest, &uiApp::timerFunc);
+  m_timers.push_back(uiTimerAssoc(dest, h));
   xTimerStart(h, 0);
   return h;
 }
@@ -841,7 +870,21 @@ uiTimerHandle uiApp::setTimer(uiEvtHandler * dest, int periodMS)
 
 void uiApp::killTimer(uiTimerHandle handle)
 {
+  auto dest = (uiEvtHandler *) pvTimerGetTimerID(handle);
+  m_timers.remove(uiTimerAssoc(dest, handle));
+  xTimerStop(handle, portMAX_DELAY);
   xTimerDelete(handle, portMAX_DELAY);
+}
+
+
+void uiApp::killEvtHandlerTimers(uiEvtHandler * dest)
+{
+  for (auto t : m_timers)
+    if (t.first == dest) {
+      xTimerStop(t.second, portMAX_DELAY);
+      xTimerDelete(t.second, portMAX_DELAY);
+    }
+  m_timers.remove_if([&](uiTimerAssoc const & p) { return p.first == dest; });
 }
 
 
@@ -1087,7 +1130,7 @@ uiMessageBoxResult uiApp::inputBox(char const * title, char const * text, char *
   mainFrame->frameProps().hasMaximizeButton = false;
   mainFrame->frameProps().hasMinimizeButton = false;
   mainFrame->onKeyUp = [&](uiKeyEventInfo key) {
-    if (key.VK == VK_RETURN)
+    if (key.VK == VK_RETURN || key.VK == VK_KP_ENTER)
       mainFrame->exitModal(1);
     else if (key.VK == VK_ESCAPE)
       mainFrame->exitModal(0);
@@ -1143,6 +1186,82 @@ uiMessageBoxResult uiApp::inputBox(char const * title, char const * text, char *
     }
     case 2:
       return uiMessageBoxResult::Button2;
+    default:
+      return uiMessageBoxResult::Cancel;
+  }
+}
+
+
+uiMessageBoxResult uiApp::fileDialog(char const * title, char * inOutDirectory, int maxDirNameSize, char * inOutFilename, int maxFileNameSize, char const * buttonOKText, char const * buttonCancelText, int frameWidth, int frameHeight)
+{
+  auto mainFrame = new uiFrame(m_rootWindow, title, UIWINDOW_PARENTCENTER, Size(frameWidth, frameHeight), false);
+  mainFrame->frameProps().resizeable        = false;
+  mainFrame->frameProps().hasMaximizeButton = false;
+  mainFrame->frameProps().hasMinimizeButton = false;
+  mainFrame->onKeyUp = [&](uiKeyEventInfo key) {
+    if (key.VK == VK_RETURN || key.VK == VK_KP_ENTER)
+      mainFrame->exitModal(1);
+    else if (key.VK == VK_ESCAPE)
+      mainFrame->exitModal(0);
+  };
+
+  int y = 25;
+  constexpr int x = 8;
+  constexpr int hh = 20;
+  constexpr int dy = hh + 8;
+  constexpr int lbloy = 3;
+
+  constexpr int fnBorder = 20;
+  new uiLabel(mainFrame, "Filename", Point(x + fnBorder, y + lbloy));
+  auto filenameEdit = new uiTextEdit(mainFrame, inOutFilename, Point(x + 50 + fnBorder, y), Size(frameWidth - x - 58 - fnBorder * 2, hh));
+
+  y += dy;
+
+  auto browser = new uiFileBrowser(mainFrame, Point(x, y), Size(frameWidth - x * 2, frameHeight - y - 35));
+  browser->setDirectory(inOutDirectory);
+  browser->onChange = [&]() {
+    if (!browser->isDirectory()) {
+      filenameEdit->setText(browser->filename());
+      filenameEdit->repaint();
+    }
+  };
+  browser->onDblClick = [&]() {
+    if (!browser->isDirectory())
+      mainFrame->exitModal(1);
+  };
+
+  y += browser->clientSize().height + (dy - hh);
+
+  auto buttonCancelLen = m_canvas->textExtent(uiButtonStyle().textFont, buttonCancelText) + 10;
+  auto buttonOKLen     = m_canvas->textExtent(uiButtonStyle().textFont, buttonOKText) + 10;
+
+  auto buttonCancel = new uiButton(mainFrame, buttonCancelText, Point(frameWidth - buttonCancelLen - buttonOKLen - 20, y), Size(buttonCancelLen, hh));
+  auto buttonOK     = new uiButton(mainFrame, buttonOKText, Point(frameWidth - buttonOKLen - 8, y), Size(buttonOKLen, hh));
+
+  buttonCancel->onClick = [&]() { mainFrame->exitModal(0); };
+  buttonOK->onClick     = [&]() { mainFrame->exitModal(1); };
+
+  // focus on edit
+  mainFrame->onShow = [&]() {
+    setFocusedWindow(filenameEdit);
+  };
+
+  int modalResult = showModalWindow(mainFrame);
+  destroyWindow(mainFrame);
+
+  switch (modalResult) {
+    case 1:
+    {
+      int len = imin(maxDirNameSize, strlen(browser->directory()));
+      memcpy(inOutDirectory, browser->directory(), len);
+      inOutDirectory[len] = 0;
+
+      len = imin(maxFileNameSize, strlen(filenameEdit->text()));
+      memcpy(inOutFilename, filenameEdit->text(), len);
+      inOutFilename[len] = 0;
+
+      return uiMessageBoxResult::ButtonOK;
+    }
     default:
       return uiMessageBoxResult::Cancel;
   }
@@ -2490,7 +2609,8 @@ uiTextEdit::uiTextEdit(uiWindow * parent, char const * text, const Point & pos, 
     m_textSpace(0),
     m_viewX(0),
     m_cursorCol(0),
-    m_selCursorCol(0)
+    m_selCursorCol(0),
+    m_codepage(nullptr)
 {
   objectType().uiTextEdit = true;
 
@@ -2515,9 +2635,14 @@ uiTextEdit::~uiTextEdit()
 
 void uiTextEdit::setText(char const * value)
 {
-  m_textLength = strlen(value);
-  checkAllocatedSpace(m_textLength);
-  strcpy(m_text, value);
+  if (value) {
+    m_textLength = strlen(value);
+    checkAllocatedSpace(m_textLength);
+    strcpy(m_text, value);
+  } else {
+    m_text = strdup("");
+    m_textLength = 0;
+  }
 }
 
 
@@ -2588,7 +2713,21 @@ void uiTextEdit::processEvent(uiEvent * event)
 }
 
 
-void uiTextEdit::handleKeyDown(uiKeyEventInfo key)
+int uiTextEdit::keyToASCII(uiKeyEventInfo const & key)
+{
+  // check codepage consistency
+  if (m_codepage == nullptr || m_codepage->codepage != m_textEditStyle.textFont->codepage)
+    m_codepage = CodePages::get(m_textEditStyle.textFont->codepage);
+
+  VirtualKeyItem item = { };
+  item.vk    = key.VK;
+  item.CTRL  = key.CTRL;
+  item.SHIFT = key.SHIFT;
+  return virtualKeyToASCII(item, m_codepage);
+}
+
+
+void uiTextEdit::handleKeyDown(uiKeyEventInfo const & key)
 {
   if (m_textEditProps.allowEdit) {
     switch (key.VK) {
@@ -2609,13 +2748,20 @@ void uiTextEdit::handleKeyDown(uiKeyEventInfo key)
         break;
 
       default:
+      {
         // normal keys
-        if (key.ASCII >= 0x20 && key.ASCII != 0x7F) {
+
+        // we don't use key.ASCII because it uses codepage stored in Keyboard object but
+        // each textedit may have a different font and codepage
+        auto ASCII = keyToASCII(key);
+
+        if (ASCII >= 0x20 && ASCII != 0x7F) {
           if (m_cursorCol != m_selCursorCol)
             removeSel();  // there is a selection, same behavior of VK_DELETE
-          insert(key.ASCII);
+          insert(ASCII);
         }
         break;
+      }
     }
   }
 
@@ -2700,6 +2846,8 @@ void uiTextEdit::paintTextEdit()
 // return glyph data of the specified character
 uint8_t const * uiTextEdit::getCharInfo(char ch, int * width)
 {
+  if (m_textEditProps.passwordMode)
+    ch = '*';
   uint8_t const * chptr;
   if (m_textEditStyle.textFont->chptr) {
     // variable width
@@ -2962,9 +3110,9 @@ void uiLabel::setTextFmt(const char *format, ...)
   if (size > 0) {
     va_end(ap);
     va_start(ap, format);
-    char buf[size + 1];
-    vsnprintf(buf, size, format, ap);
-    setText(buf);
+    m_text = (char*) realloc(m_text, size + 1);
+    vsnprintf(m_text, size, format, ap);
+    update();
   }
   va_end(ap);
 }
@@ -2986,7 +3134,20 @@ void uiLabel::paintLabel()
   canvas()->fillRectangle(r);
   canvas()->setGlyphOptions(GlyphOptions().FillBackground(false).DoubleWidth(0).Bold(false).Italic(false).Underline(false).Invert(0));
   canvas()->setPenColor(m_labelStyle.textColor);
-  int x = r.X1;
+
+  int x = r.X1; // default left align
+
+  switch (m_labelStyle.textAlign) {
+    case uiHAlign::Right:
+      x = r.X2 - canvas()->textExtent(m_labelStyle.textFont, m_text);
+      break;
+    case uiHAlign::Center:
+      x = r.X1 + (r.width() - canvas()->textExtent(m_labelStyle.textFont, m_text)) / 2;
+      break;
+    default:
+      break;
+  }
+
   int y = r.Y1 + (r.height() - m_labelStyle.textFont->height) / 2;
   canvas()->drawText(m_labelStyle.textFont, x, y, m_text);
 }
@@ -3644,7 +3805,12 @@ void uiCustomListBox::processEvent(uiEvent * event)
 
     case UIEVT_MOUSEBUTTONDOWN:
       if (event->params.mouse.changedButton == 1)
-        handleMouseDown(event->params.mouse.status.X, event->params.mouse.status.Y);
+        mouseDownSelect(event->params.mouse.status.X, event->params.mouse.status.Y);
+      break;
+
+    case UIEVT_MOUSEMOVE:
+      if (m_listBoxProps.selectOnMouseOver)
+        mouseMoveSelect(event->params.mouse.status.X, event->params.mouse.status.Y);
       break;
 
     case UIEVT_KEYDOWN:
@@ -3714,9 +3880,9 @@ void uiCustomListBox::selectItem(int index, bool add, bool range)
   if (items_getCount() > 0) {
     index = iclamp(index, 0, items_getCount() - 1);
     int first = firstSelectedItem();
-    if (!add)
+    if (!add || !m_listBoxProps.allowMultiSelect)
       items_deselectAll();
-    if (range) {
+    if (m_listBoxProps.allowMultiSelect && range) {
       if (index <= first) {
         for (int i = index; i <= first; ++i)
           items_select(i, true);
@@ -3850,13 +4016,20 @@ int uiCustomListBox::getItemAtMousePos(int mouseX, int mouseY)
 }
 
 
-void uiCustomListBox::handleMouseDown(int mouseX, int mouseY)
+void uiCustomListBox::mouseDownSelect(int mouseX, int mouseY)
 {
   int idx = getItemAtMousePos(mouseX, mouseY);
   if (idx >= 0) {
     if (app()->keyboard()->isVKDown(VK_LCTRL) || app()->keyboard()->isVKDown(VK_RCTRL)) {
       // CTRL is down
-      items_select(idx, !items_selected(idx));
+      bool wasSelected = items_selected(idx);
+      if (m_listBoxProps.allowMultiSelect) {
+        items_select(idx, !wasSelected);
+      } else {
+        items_deselectAll();
+        if (!wasSelected)
+          items_select(idx, true);
+      }
     } else {
       // CTRL is up
       items_deselectAll();
@@ -3868,6 +4041,18 @@ void uiCustomListBox::handleMouseDown(int mouseX, int mouseY)
     return;
   onChange();
   repaint();
+}
+
+
+void uiCustomListBox::mouseMoveSelect(int mouseX, int mouseY)
+{
+  int idx = getItemAtMousePos(mouseX, mouseY);
+  if (idx >= 0 && !items_selected(idx)) {
+    items_deselectAll();
+    items_select(idx, true);
+    onChange();
+    repaint();
+  }
 }
 
 
@@ -4679,6 +4864,88 @@ void uiSlider::handleKeyDown(uiKeyEventInfo key)
 // uiSlider
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// uiProgressBar
+
+
+uiProgressBar::uiProgressBar(uiWindow * parent, const Point & pos, const Size & size, bool visible, uint32_t styleClassID)
+  : uiControl(parent, pos, size, visible, 0)
+{
+  objectType().uiProgressBar = true;
+
+  windowProps().focusable = false;
+  windowStyle().borderSize = 1;
+  windowStyle().borderColor = RGB888(64, 64, 64);
+
+  if (app()->style() && styleClassID)
+    app()->style()->setStyle(this, styleClassID);
+
+  m_percentage = 0;
+}
+
+
+uiProgressBar::~uiProgressBar()
+{
+}
+
+
+void uiProgressBar::paintProgressBar()
+{
+  Rect cRect = uiControl::clientRect(uiOrigin::Window);
+
+  int splitPos = cRect.width() * m_percentage / 100;
+  Rect fRect = Rect(cRect.X1, cRect.Y1, cRect.X1 + splitPos, cRect.Y2);
+  Rect bRect = Rect(cRect.X1 + splitPos + 1, cRect.Y1, cRect.X2, cRect.Y2);
+
+  // the bar
+  canvas()->setBrushColor(m_progressBarStyle.foregroundColor);
+  canvas()->fillRectangle(fRect);
+  canvas()->setBrushColor(m_progressBarStyle.backgroundColor);
+  canvas()->fillRectangle(bRect);
+
+  if (m_progressBarProps.showPercentage) {
+    char txt[5];
+    sprintf(txt, "%d%%", m_percentage);
+    canvas()->setGlyphOptions(GlyphOptions().FillBackground(false).DoubleWidth(0).Bold(false).Italic(false).Underline(false).Invert(0));
+    canvas()->setPenColor(m_progressBarStyle.textColor);
+    int x = fRect.X2 - canvas()->textExtent(m_progressBarStyle.textFont, txt);
+    int y = cRect.Y1 + (cRect.height() - m_progressBarStyle.textFont->height) / 2;
+    canvas()->drawText(m_progressBarStyle.textFont, x, y, txt);
+  }
+}
+
+
+void uiProgressBar::processEvent(uiEvent * event)
+{
+  uiControl::processEvent(event);
+
+  switch (event->id) {
+
+    case UIEVT_PAINT:
+      beginPaint(event, uiControl::clientRect(uiOrigin::Window));
+      paintProgressBar();
+      break;
+
+    default:
+      break;
+  }
+}
+
+
+void uiProgressBar::setPercentage(int value)
+{
+  value = imin(imax(0, value), 100);
+  if (value != m_percentage) {
+    m_percentage = value;
+    repaint();
+  }
+}
+
+
+// uiProgressBar
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 

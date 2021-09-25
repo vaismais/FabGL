@@ -3,7 +3,11 @@
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -63,7 +67,7 @@ class VGAPalettedController : public VGABaseController {
 
 public:
 
-  VGAPalettedController(int linesCount, NativePixelFormat nativePixelFormat, int viewPortRatioDiv, int viewPortRatioMul, intr_handler_t isrHandler);
+  VGAPalettedController(int linesCount, int columnsQuantum, NativePixelFormat nativePixelFormat, int viewPortRatioDiv, int viewPortRatioMul, intr_handler_t isrHandler);
   ~VGAPalettedController();
 
   // unwanted methods
@@ -162,7 +166,8 @@ private:
   uint8_t                     m_packedRGB222_to_PaletteIndex[64];
 
   // configuration
-  int                         m_linesCount;
+  int                         m_linesCount;     // viewport height must be divisible by m_linesCount
+  int                         m_columnsQuantum; // viewport width must be divisble by m_columnsQuantum
   NativePixelFormat           m_nativePixelFormat;
   int                         m_viewPortRatioDiv;
   int                         m_viewPortRatioMul;

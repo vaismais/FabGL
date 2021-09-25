@@ -1,9 +1,13 @@
 /*
-  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
+  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -95,6 +99,12 @@ void i8042::init()
   m_keyboard = m_PS2Controller.keyboard();
   m_mouse    = m_PS2Controller.mouse();
 
+  reset();
+}
+
+
+void i8042::reset()
+{
   m_STATUS      = STATUS_SYSFLAG | STATUS_INH;
   m_DBBOUT      = 0;
   m_DBBIN       = 0;
@@ -168,7 +178,9 @@ void i8042::tick()
   if ((m_STATUS & STATUS_OBF) == 0 && m_keyboard->scancodeAvailable()) {
     if (m_commandByte & CMDBYTE_STD_SCAN_CONVERSION) {
       // transform "set 2" scancodes to "set 1"
-      uint8_t scode = Keyboard::convScancodeSet2To1(m_keyboard->getNextScancode());  // "set 1" code (0xf0 doesn't change!)
+      int scode2 = m_keyboard->getNextScancode();
+      checkSysReq(scode2);
+      uint8_t scode = Keyboard::convScancodeSet2To1(scode2);  // "set 1" code (0xf0 doesn't change!)
       m_DBBOUT = (m_DBBOUT == 0xf0 ? (0x80 | scode) : scode);
       if (scode != 0xf0) {
         m_STATUS |= STATUS_OBF;
@@ -177,7 +189,9 @@ void i8042::tick()
       }
     } else {
       // no transform
-      m_DBBOUT = m_keyboard->getNextScancode();
+      int scode2 = m_keyboard->getNextScancode();
+      checkSysReq(scode2);
+      m_DBBOUT = scode2;
       m_STATUS |= STATUS_OBF;
       ++m_keybIntTrigs;
     }
@@ -283,7 +297,7 @@ void i8042::execCommand()
       break;
 
     case CTRLCMD_SYSTEM_RESET:
-      esp_restart();
+      m_reset(m_context);
       break;
 
     default:
@@ -337,6 +351,12 @@ bool i8042::trigMouseInterrupt()
 }
 
 
+// check if SysReq (ALT + PRINT SCREEN) has been pressed
+void i8042::checkSysReq(int scode2)
+{
+  if (scode2 == 0x84)
+    m_sysReq(m_context);
+}
 
 
 

@@ -6,7 +6,23 @@
 **[See also my youtube channel where you can find demos and tutorials](https://www.youtube.com/user/fdivitto/videos)**
 
 
-You can support development by purchasing my own [development board](https://www.tindie.com/products/18910/) and [Serial Terminal](https://www.tindie.com/products/21107/).
+You can support development by purchasing my own [development board](https://www.tindie.com/products/24612/) and [Serial Terminal](https://www.tindie.com/products/21107/).
+
+=================================================================================
+
+License terms:
+
+Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
+
+Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+
+All rights reserved.
+
+This library and related software is available under GPL v3.
+
+Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+=================================================================================
 
 This library works with ESP32 revision 1 or upper. See [**Compatible Boards**][Boards].
 
@@ -37,9 +53,13 @@ Finally, there is a sound engine, with multiple channels mixed to a mono output.
 
 [![Everything Is AWESOME](https://img.youtube.com/vi/F2f0_9_TJmM/hqdefault.jpg)](https://www.youtube.com/watch?v=F2f0_9_TJmM "")
 
-### Installation Tutorial (click for video):
+### Installation Tutorial - TTGO VGA32 (click for video):
 
 [![Everything Is AWESOME](https://img.youtube.com/vi/8OTaPQlSTas/hqdefault.jpg)](https://www.youtube.com/watch?v=8OTaPQlSTas "")
+
+### IBM PC Emulator (click for video):
+
+[![Everything Is AWESOME](https://img.youtube.com/vi/3I1U2nEoxIQ/hqdefault.jpg)](https://www.youtube.com/watch?v=3I1U2nEoxIQ "")
 
 ### Space Invaders Example (click for video):
 
@@ -48,7 +68,6 @@ Finally, there is a sound engine, with multiple channels mixed to a mono output.
 ### Dev board connected to TFT ILI9341 240x320, TFT ST7789 240x240 and OLED SSD1306 128x64 (click for video):
 
 [![Everything Is AWESOME](https://img.youtube.com/vi/OCsEqyJ7wu4/hqdefault.jpg)](https://www.youtube.com/watch?v=OCsEqyJ7wu4 "")
-
 
 ### Serial Terminal escape sequences for graphics and sound (click for video):
 
@@ -97,6 +116,10 @@ Finally, there is a sound engine, with multiple channels mixed to a mono output.
 ### Collision Detection Example (click for video):
 
 [![Everything Is AWESOME](https://img.youtube.com/vi/q3OPSq4HhDE/hqdefault.jpg)](https://www.youtube.com/watch?v=q3OPSq4HhDE "")
+
+### Multitasking CP/M Plus Example (click for video):
+
+[![Everything Is AWESOME](https://img.youtube.com/vi/3UevsxMQZ5w/hqdefault.jpg)](https://www.youtube.com/watch?v=3UevsxMQZ5w "")
 
 
 

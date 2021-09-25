@@ -1,9 +1,13 @@
 /*
-  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
+  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -215,7 +219,7 @@ void Machine::handleMouse()
     setJoy(JoyDown,  false);
     setJoy(JoyLeft,  false);
     setJoy(JoyRight, false);
-    auto mouse = fabgl::PS2Controller::instance()->mouse();
+    auto mouse = fabgl::PS2Controller::mouse();
     if (mouse->deltaAvailable()) {
       MouseDelta d;
       mouse->getNextDelta(&d);
@@ -467,7 +471,7 @@ void Machine::busWrite(int addr, uint8_t value)
 */
 void Machine::setKeyboard(VirtualKey key, bool down)
 {
-  auto keyboard = fabgl::PS2Controller::instance()->keyboard();
+  auto keyboard = fabgl::PS2Controller::keyboard();
 
   #if DEBUGMACHINE
   Serial.printf("VirtualKey = %s %s\n", keyboard->virtualKeyToString(key), down ? "DN" : "UP");

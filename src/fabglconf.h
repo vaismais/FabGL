@@ -3,7 +3,11 @@
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -44,8 +48,14 @@
 /** Blink (cursor, text blink, ...) period in ms. */
 #define FABGLIB_DEFAULT_BLINK_PERIOD_MS 500
 
+
 /** Size of display controller primitives queue */
 #define FABGLIB_DEFAULT_DISPLAYCONTROLLER_QUEUE_SIZE 1024
+
+
+#define FABGLIB_TERMINAL_FLOWCONTROL_RXFIFO_MIN_THRESHOLD 20
+
+#define FABGLIB_TERMINAL_FLOWCONTROL_RXFIFO_MAX_THRESHOLD 300
 
 
 /** Size (in bytes) of primitives dynamic buffers. Used by primitives like drawPath and fillPath to contain path points. */
@@ -156,7 +166,9 @@
 #define VGA_256x192_50Hz "\"256x192@50\" 8.13 256 288 296 328 192 196 198 202 -HSync -VSync DoubleScan"
 
 /** Modeline for 256x384@60Hz resolution */
-#define VGA_256x384_60Hz "\"256x384@60\" 17.09 256 272 304 352 384 387 391 404 -HSync -VSync DoubleScan FrontPorchBegins"
+#define VGA_256x384_60Hz "\"256x384@60\" 17.09 256 272 304 352 384 387 391 404 -HSync -VSync DoubleScan"
+
+#define VGA_320x200_60HzD "\"320x200@60HzD\" 25.175 320 328 376 400 200 226 227 262 -HSync -VSync DoubleScan"
 
 /** Modeline for 320x200@70Hz resolution - the same of VGA_640x200_70Hz with horizontal halved */
 #define VGA_320x200_70Hz "\"320x200@70Hz\" 12.5875 320 328 376 400 200 206 207 224 -HSync -VSync DoubleScan"
@@ -187,6 +199,9 @@
 
 /** Modeline for 512x512@58Hz resolution */
 #define VGA_512x512_58Hz "\"512x512@58Hz\" 21.21 512 538 594 668 512 513 516 545 -HSync -VSync"
+
+/** Modeline for 640x200@60Hz doublescan resolution */
+#define VGA_640x200_60HzD "\"640x200@60HzD\" 25.175 640 656 752 800 200 226 227 262 -HSync -VSync doublescan"
 
 /** Modeline for 640x200@70Hz resolution - the same of VGA_640x400_70Hz with vertical halved */
 #define VGA_640x200_70Hz "\"640x200@70Hz\" 25.175 640 656 752 800 200 206 207 224 -HSync -VSync DoubleScan"
@@ -242,6 +257,12 @@
 // Thanks to Paul Rickards (http://biosrhythm.com) - requires upscaler
 #define PAL_720x288_50hz "\"PAL 720x288 (50Hz)\" 13.853 720 741 806 888 288 290 293 312 -hsync -vsync"
 
+/** Modeline for 720x348@50Hz doublescan resolution */
+#define VGA_720x348_50HzD "\"720x348@50HzD\" 30.84 720 752 808 840 348 355 358 366 -hsync -vsync doublescan"
+
+/** Modeline for 720x348@59Hz doublescan resolution */
+#define VGA_720x348_59HzD "\"720x348@59d\" 38.87 720 788 852 896 348 350 359 366 -HSync -VSync DoubleScan"
+
 /** Modeline for 720x348@73Hz resolution */
 #define VGA_720x348_73Hz "\"720x348@73Hz\" 27 720 736 799 872 348 379 381 433 -HSync -VSync"
 
@@ -282,7 +303,7 @@
 #define SVGA_1024x768_75Hz "\"1024x768@75Hz\" 78.80 1024 1040 1136 1312 768 769 772 800 +HSync +VSync"
 
 /** Modeline for 1280x600@60Hz resolution */
-#define SVGA_1280x600_60Hz "\"1280x600@60Hz\" 61.5 1280 1336 1464 1648 600 601 604 622 -HSync -VSync  FrontPorchBegins"
+#define SVGA_1280x600_60Hz "\"1280x600@60Hz\" 61.5 1280 1336 1464 1648 600 601 604 622 -HSync -VSync"
 
 /** Modeline for 1280x720@60Hz resolution */
 #define SVGA_1280x720_60Hz "\"1280x720@60Hz\" 74.48 1280 1468 1604 1664 720 721 724 746 +hsync +vsync"
@@ -291,7 +312,7 @@
 #define SVGA_1280x720_60HzAlt1 "\"1280x720@60HzAlt1\" 73.78 1280 1312 1592 1624 720 735 742 757"
 
 /** Modeline for 1280x768@50Hz resolution */
-#define SVGA_1280x768_50Hz "\"1280x768@50Hz\" 64.050004 1280 1312 1552 1584 768 784 791 807 -HSync -VSync  FrontPorchBegins"
+#define SVGA_1280x768_50Hz "\"1280x768@50Hz\" 64.050004 1280 1312 1552 1584 768 784 791 807 -HSync -VSync"
 
 
 

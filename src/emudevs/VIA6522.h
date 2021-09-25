@@ -1,9 +1,13 @@
 /*
-  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
+  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -81,13 +85,16 @@ namespace fabgl {
 #define VIA_ACR_T1_OUTENABLE    0x80
 
 
+/** \ingroup Enumerations
+ * @brief I/O port
+ */
 enum class VIA6522Port {
-  PA,  // (8 bit)
-  PB,  // (8 bit)
-  CA1, // (1 bit)
-  CA2, // (1 bit)
-  CB1, // (1 bit)
-  CB2, // (1 bit)
+  PA,  /**< (8 bit) */
+  PB,  /**< (8 bit) */
+  CA1, /**< (1 bit) */
+  CA2, /**< (1 bit) */
+  CB1, /**< (1 bit) */
+  CB2, /**< (1 bit) */
 };
 
 

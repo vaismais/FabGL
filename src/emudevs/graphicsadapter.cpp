@@ -1,9 +1,13 @@
 /*
-  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - www.fabgl.com
+  Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
   Copyright (c) 2019-2021 Fabrizio Di Vittorio.
   All rights reserved.
 
-  This file is part of FabGL Library.
+
+* Please contact fdivitto2013@gmail.com if you need a commercial license.
+
+
+* This library and related software is available under GPL v3.
 
   FabGL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -97,6 +101,7 @@ GraphicsAdapter::GraphicsAdapter()
     m_cursorStart(0),
     m_cursorEnd(0),
     m_cursorVisible(false),
+    m_cursorGlyph(nullptr),
     m_bit7blink(true),
     m_PCGraphicsBackgroundColorIndex(0),
     m_PCGraphicsForegroundColorIndex(15),
@@ -109,6 +114,7 @@ GraphicsAdapter::GraphicsAdapter()
 
 GraphicsAdapter::~GraphicsAdapter()
 {
+  m_VGADCtrl.end();
   cleanupFont();
   freeLUT();
   if (m_cursorGlyph)
@@ -136,7 +142,7 @@ void GraphicsAdapter::setEmulation(Emulation emulation)
         setCursorShape(5, 7);
         m_VGADCtrl.setDrawScanlineCallback(drawScanline_PC_Text_40x25_16Colors, this);
         m_VGADCtrl.setScanlinesPerCallBack(4);
-        m_VGADCtrl.setResolution(VGA_320x200_70Hz);
+        m_VGADCtrl.setResolution(QVGA_320x240_60Hz, 320, 200);
         m_columns = m_VGADCtrl.getViewPortWidth() / m_font.width;
         m_rows    = m_VGADCtrl.getViewPortHeight() / m_font.height;
         break;
@@ -147,7 +153,7 @@ void GraphicsAdapter::setEmulation(Emulation emulation)
         setCursorShape(13, 15);
         m_VGADCtrl.setDrawScanlineCallback(drawScanline_PC_Text_80x25_16Colors, this);
         m_VGADCtrl.setScanlinesPerCallBack(8);
-        m_VGADCtrl.setResolution(VGA_640x400_70Hz);
+        m_VGADCtrl.setResolution(VGA_640x480_60Hz, 640, 400);
         m_columns = m_VGADCtrl.getViewPortWidth() / m_font.width;
         m_rows    = m_VGADCtrl.getViewPortHeight() / m_font.height;
         break;
@@ -156,21 +162,21 @@ void GraphicsAdapter::setEmulation(Emulation emulation)
         //printf("Emulation::PC_Graphics_320x200_4Colors\n");
         m_VGADCtrl.setDrawScanlineCallback(drawScanline_PC_Graphics_320x200_4Colors, this);
         m_VGADCtrl.setScanlinesPerCallBack(1);
-        m_VGADCtrl.setResolution(VGA_320x200_70Hz);
+        m_VGADCtrl.setResolution(QVGA_320x240_60Hz, 320, 200);
         break;
 
       case Emulation::PC_Graphics_640x200_2Colors:
         //printf("Emulation::PC_Graphics_640x200_2Colors\n");
         m_VGADCtrl.setDrawScanlineCallback(drawScanline_PC_Graphics_640x200_2Colors, this);
         m_VGADCtrl.setScanlinesPerCallBack(1);
-        m_VGADCtrl.setResolution(VGA_640x200_70Hz);
+        m_VGADCtrl.setResolution(VGA_640x240_60Hz, 640, 200);
         break;
 
       case Emulation::PC_Graphics_HGC_720x348:
         //printf("Emulation::PC_Graphics_HGC_720x348\n");
         m_VGADCtrl.setDrawScanlineCallback(drawScanline_PC_Graphics_HGC_720x348, this);
         m_VGADCtrl.setScanlinesPerCallBack(2);
-        m_VGADCtrl.setResolution(VGA_720x348_73Hz);
+        m_VGADCtrl.setResolution(VGA_720x348_59HzD);
         break;
 
     }

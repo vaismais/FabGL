@@ -18,6 +18,8 @@
 //   - emulator commands executed as INT instead of custom CPU opcodes
 //   - reset to 0xffff:0000 as real 8086
 //   - LEA, removed mod=11 option
+//   - registers moved to different area
+//   - memory read/write no more direct but by callbacks
 
 
 
@@ -36,15 +38,6 @@ namespace fabgl {
 #if FABGL_ESP_IDF_VERSION > FABGL_ESP_IDF_VERSION_VAL(3, 3, 5)
   #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 #endif
-
-
-#ifndef REGS_BASE
-  #define REGS_BASE 0xF0000  // normal use
-#endif
-
-
-//static uint8_t rrr[46];
-//static int32_t REGS_BASE;
 
 
 #define VIDEOMEM_START 0xA0000
@@ -86,31 +79,16 @@ namespace fabgl {
 
 // FLAGS
 
-#if I8086_FLAGSINREGS
-  #define flags regs8
-  #define CF_ADDR 40
-  #define PF_ADDR 41
-  #define AF_ADDR 42
-  #define ZF_ADDR 43
-  #define SF_ADDR 44
-  #define TF_ADDR 45
-  #define IF_ADDR 46
-  #define DF_ADDR 47
-  #define OF_ADDR 48
-  #define XX_ADDR 49
-#else
-  static uint8_t flags[10];
-  #define CF_ADDR 0
-  #define PF_ADDR 1
-  #define AF_ADDR 2
-  #define ZF_ADDR 3
-  #define SF_ADDR 4
-  #define TF_ADDR 5
-  #define IF_ADDR 6
-  #define DF_ADDR 7
-  #define OF_ADDR 8
-  #define XX_ADDR 9
-#endif
+#define CF_ADDR 0
+#define PF_ADDR 1
+#define AF_ADDR 2
+#define ZF_ADDR 3
+#define SF_ADDR 4
+#define TF_ADDR 5
+#define IF_ADDR 6
+#define DF_ADDR 7
+#define OF_ADDR 8
+#define XX_ADDR 9
 
 #define FLAG_CF                                  (flags[CF_ADDR])
 #define FLAG_PF                                  (flags[PF_ADDR])
@@ -125,6 +103,9 @@ namespace fabgl {
 
 
 // Global variable definitions
+static uint8_t    regs[48];
+static uint8_t    flags[10];
+static int32_t    regs_offset;
 static uint8_t    * regs8, i_mod_size, i_d, i_w, raw_opcode_id, xlat_opcode_id, extra, rep_mode, seg_override_en, rep_override_en, trap_flag;
 static uint16_t   * regs16, reg_ip, seg_override;
 static uint32_t   op_source, op_dest, set_flags_type;
@@ -136,6 +117,8 @@ i8086::ReadPort           i8086::s_readPort;
 i8086::WritePort          i8086::s_writePort;
 i8086::WriteVideoMemory8  i8086::s_writeVideoMemory8;
 i8086::WriteVideoMemory16 i8086::s_writeVideoMemory16;
+i8086::ReadVideoMemory8   i8086::s_readVideoMemory8;
+i8086::ReadVideoMemory16  i8086::s_readVideoMemory16;
 i8086::Interrupt          i8086::s_interrupt;
 
 uint8_t *                 i8086::s_memory;
@@ -375,6 +358,18 @@ uint8_t i8086::BH()
 }
 
 
+void i8086::setCL(uint8_t value)
+{
+  regs8[REG_CL] = value;
+}
+
+
+void i8086::setCH(uint8_t value)
+{
+  regs8[REG_CH] = value;
+}
+
+
 uint8_t i8086::CL()
 {
   return regs8[REG_CL];
@@ -384,6 +379,30 @@ uint8_t i8086::CL()
 uint8_t i8086::CH()
 {
   return regs8[REG_CH];
+}
+
+
+void i8086::setDL(uint8_t value)
+{
+  regs8[REG_DL] = value;
+}
+
+
+void i8086::setDH(uint8_t value)
+{
+  regs8[REG_DH] = value;
+}
+
+
+uint8_t i8086::DL()
+{
+  return regs8[REG_DL];
+}
+
+
+uint8_t i8086::DH()
+{
+  return regs8[REG_DH];
 }
 
 
@@ -411,6 +430,12 @@ void i8086::setDX(uint16_t value)
 }
 
 
+void i8086::setDI(uint16_t value)
+{
+  regs16[REG_DI] = value;
+}
+
+
 void i8086::setCS(uint16_t value)
 {
   regs16[REG_CS] = value;
@@ -429,9 +454,21 @@ void i8086::setSS(uint16_t value)
 }
 
 
+void i8086::setES(uint16_t value)
+{
+  regs16[REG_ES] = value;
+}
+
+
 void i8086::setIP(uint16_t value)
 {
   reg_ip = value;
+}
+
+
+uint16_t i8086::IP()
+{
+  return reg_ip;
 }
 
 
@@ -536,6 +573,31 @@ bool i8086::flagZF()
   return FLAG_ZF;
 }
 
+bool i8086::flagOF()
+{
+  return FLAG_OF;
+}
+
+bool i8086::flagDF()
+{
+  return FLAG_DF;
+}
+
+bool i8086::flagSF()
+{
+  return FLAG_SF;
+}
+
+bool i8086::flagAF()
+{
+  return FLAG_AF;
+}
+
+bool i8086::flagPF()
+{
+  return FLAG_PF;
+}
+
 void i8086::setFlagZF(bool value)
 {
   FLAG_ZF = value;
@@ -565,56 +627,52 @@ bool i8086::IRQ(uint8_t interrupt_num)
 
 
 /////////////////////////////////////////////////////////////////////////////
-// addr or subscripts locate bytes not words!
 
 
-// unmonitored read/write access
-
+// direct RAM access (not video RAM)
 #define MEM8(addr)  s_memory[addr]
 #define MEM16(addr) (*(uint16_t*)(s_memory + (addr)))
 
-/*
-uint8_t & IRAM_ATTR i8086::MEM8(int addr)
+
+inline __attribute__((always_inline)) uint8_t i8086::RMEM8(int addr)
 {
-  uint8_t opcode = s_memory[16 * regs16[REG_CS] + reg_ip];
-  uint8_t opcode2 = s_memory[16 * regs16[REG_CS] + reg_ip + 1];
   if (addr >= VIDEOMEM_START && addr < VIDEOMEM_END) {
-    if (opcode != 0x8b && opcode != 0xa5 && opcode != 0x8a && opcode != 0x30 && opcode != 0x32 && opcode != 0x86 && opcode != 0x20 && opcode != 0x08
-        && opcode != 0xa4 && opcode != 0x22 && opcode != 0xac && opcode != 0x31 && opcode != 0xad)
-      printf("8 bit video access, addr %05X instr %02X, %02X\n", addr, opcode, opcode2);
+    return s_readVideoMemory8(s_context, addr);
+  } else {
+    return s_memory[addr];
   }
-  return s_memory[addr];
 }
 
-uint16_t & IRAM_ATTR i8086::MEM16(int addr)
+
+inline __attribute__((always_inline)) uint16_t i8086::RMEM16(int addr)
 {
-  uint8_t opcode = s_memory[16 * regs16[REG_CS] + reg_ip];
-  uint8_t opcode2 = s_memory[16 * regs16[REG_CS] + reg_ip + 1];
-  if (addr >= 0xA0000 && addr < 0xC0000) {
-    if (opcode != 0x8b && opcode != 0xa5 && opcode != 0x8a && opcode != 0x30 && opcode != 0x32 && opcode != 0x86 && opcode != 0x20 && opcode != 0x08
-        && opcode != 0xa4 && opcode != 0x22 && opcode != 0xac && opcode != 0x31 && opcode != 0xad)
-      printf("16 bit video access, addr %05X instr %02X, %02X\n", addr, opcode, opcode2);
+  if (addr >= VIDEOMEM_START && addr < VIDEOMEM_END) {
+    return s_readVideoMemory16(s_context, addr);
+  } else {
+    return *(uint16_t*)(s_memory + addr);
   }
-  return *(uint16_t*)(s_memory + addr);
 }
-*/
 
 
-// monitored (video) write
-
-void IRAM_ATTR i8086::WMEM8(int addr, uint8_t value)
+inline __attribute__((always_inline)) uint8_t i8086::WMEM8(int addr, uint8_t value)
 {
-  if (addr >= VIDEOMEM_START && addr < VIDEOMEM_END)
+  if (addr >= VIDEOMEM_START && addr < VIDEOMEM_END) {
     s_writeVideoMemory8(s_context, addr, value);
-  MEM8(addr) = value;
+  } else {
+    s_memory[addr] = value;
+  }
+  return value;
 }
 
 
-void IRAM_ATTR i8086::WMEM16(int addr, uint16_t value)
+inline __attribute__((always_inline)) uint16_t i8086::WMEM16(int addr, uint16_t value)
 {
-  if (addr >= VIDEOMEM_START && addr < VIDEOMEM_END)
+  if (addr >= VIDEOMEM_START && addr < VIDEOMEM_END) {
     s_writeVideoMemory16(s_context, addr, value);
-  MEM16(addr) = value;
+  } else {
+    *(uint16_t*)(s_memory + addr) = value;
+  }
+  return value;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -730,7 +788,7 @@ uint8_t i8086::raiseDivideByZeroInterrupt()
   if (seg_override_en || rep_override_en) {
     // go back looking for segment prefixes or REP prefixes
     while (true) {
-      uint8_t opcode = s_memory[16 * regs16[REG_CS] + reg_ip - 1];
+      uint8_t opcode = MEM8(16 * regs16[REG_CS] + reg_ip - 1);
       // break if not REP and SEG
       if ((opcode & 0xfe) != 0xf2 && (opcode & 0xe7) != 0x26)
         break;
@@ -751,12 +809,12 @@ int i8086::AAA_AAS(int8_t which_operation)
 
 void i8086::reset()
 {
-  //REGS_BASE = (int32_t)(rrr - s_memory);
+  regs_offset = (int32_t)(regs - s_memory);
 
-  regs8  = (uint8_t *)(s_memory + REGS_BASE);
-  regs16 = (uint16_t *)(s_memory + REGS_BASE);
+  regs8  = (uint8_t *)(s_memory + regs_offset);
+  regs16 = (uint16_t *)(s_memory + regs_offset);
 
-  memset(regs8, 0, 48);
+  memset(regs8, 0, sizeof(regs));
   set_flags(0);
 
   // Initialise CPU state variables
@@ -772,158 +830,159 @@ void i8086::reset()
 
 void IRAM_ATTR i8086::step()
 {
-  uint8_t const * opcode_stream = s_memory + 16 * regs16[REG_CS] + reg_ip;
+  do {
+    uint8_t const * opcode_stream = s_memory + 16 * regs16[REG_CS] + reg_ip;
 
-  //printf("step %04X:%04X (%05X) op = %02X\n", regs16[REG_CS], reg_ip, 16 * regs16[REG_CS] + reg_ip, *opcode_stream);
-
-  #if I8086_SHOW_OPCODE_STATS
-  static uint32_t opcodeStats[256] = {0};
-  static int      opcodeStatsCount = 0;
-  static uint64_t opcodeStatsT0 = esp_timer_get_time();
-  opcodeStats[*opcode_stream] += 1;
-  ++opcodeStatsCount;
-  if ((opcodeStatsCount % 1000000) == 0) {
-    opcodeStatsCount = 0;
-    if (Serial.available()) {
-      Serial.read();
-      printf("\ntime delta = %llu uS\n\n", esp_timer_get_time() - opcodeStatsT0);
-      opcodeStatsT0 = esp_timer_get_time();
-      for (int i = 0; i < 256; ++i) {
-        if (opcodeStats[i] > 0)
-          printf("%d, %02X\n", opcodeStats[i], i);
-        opcodeStats[i] = 0;
+    #if I8086_SHOW_OPCODE_STATS
+    static uint32_t opcodeStats[256] = {0};
+    static int      opcodeStatsCount = 0;
+    static uint64_t opcodeStatsT0 = esp_timer_get_time();
+    opcodeStats[*opcode_stream] += 1;
+    ++opcodeStatsCount;
+    if ((opcodeStatsCount % 1000000) == 0) {
+      opcodeStatsCount = 0;
+      if (Serial.available()) {
+        Serial.read();
+        printf("\ntime delta = %llu uS\n\n", esp_timer_get_time() - opcodeStatsT0);
+        opcodeStatsT0 = esp_timer_get_time();
+        for (int i = 0; i < 256; ++i) {
+          if (opcodeStats[i] > 0)
+            printf("%d, %02X\n", opcodeStats[i], i);
+          opcodeStats[i] = 0;
+        }
+        printf("\n");
       }
-      printf("\n");
     }
-  }
-  #endif
+    #endif
 
-  // seg_override_en and rep_override_en contain number of instructions to hold segment override and REP prefix respectively
-  if (seg_override_en)
-    seg_override_en--;
-  if (rep_override_en)
-    rep_override_en--;
+    // seg_override_en and rep_override_en contain number of instructions to hold segment override and REP prefix respectively
+    if (seg_override_en)
+      seg_override_en--;
+    if (rep_override_en)
+      rep_override_en--;
 
-  // quick and dirty processing of the most common instructions (statistically measured)
-  switch (*opcode_stream) {
+    // quick and dirty processing of the most common instructions (statistically measured)
+    switch (*opcode_stream) {
 
-    // SEG ES
-    // SEG CS
-    // SEG SS
-    // SEG DS
-    case 0x26:
-    case 0x2e:
-    case 0x36:
-    case 0x3e:
-      seg_override_en = 2;
-      seg_override    = ex_data[*opcode_stream];
-      rep_override_en && rep_override_en++;
-      ++reg_ip;
-      break;
+      // SEG ES
+      // SEG CS
+      // SEG SS
+      // SEG DS
+      case 0x26:
+      case 0x2e:
+      case 0x36:
+      case 0x3e:
+        seg_override_en = 2;
+        seg_override    = ex_data[*opcode_stream];
+        rep_override_en && rep_override_en++;
+        ++reg_ip;
+        break;
 
-    // JO
-    // JNO
-    // JB/JNAE/JC
-    // JAE/JNB/JNC
-    // JE/JZ
-    // JNE/JNZ
-    // JBE/JNA
-    // JA/JNBE
-    // JS
-    // JNS
-    // JP/JPE
-    // JNP/JPO
-    // JL/JNGE
-    // JGE/JNL
-    // JLE/JNG
-    // JG/JNLE
-    case 0x70 ... 0x7f:
-    {
-      int inv = *opcode_stream & 1; // inv is the invert flag, e.g. i_w == 1 means JNAE, whereas i_w == 0 means JAE
-      int idx = (*opcode_stream >> 1) & 7;
-      reg_ip += 2 + (int8_t)opcode_stream[1] * (inv ^ (flags[jxx_dec_a[idx]] || flags[jxx_dec_b[idx]] || flags[jxx_dec_c[idx]] ^ flags[jxx_dec_d[idx]]));
-      break;
+      // JO
+      // JNO
+      // JB/JNAE/JC
+      // JAE/JNB/JNC
+      // JE/JZ
+      // JNE/JNZ
+      // JBE/JNA
+      // JA/JNBE
+      // JS
+      // JNS
+      // JP/JPE
+      // JNP/JPO
+      // JL/JNGE
+      // JGE/JNL
+      // JLE/JNG
+      // JG/JNLE
+      case 0x70 ... 0x7f:
+      {
+        int inv = *opcode_stream & 1; // inv is the invert flag, e.g. i_w == 1 means JNAE, whereas i_w == 0 means JAE
+        int idx = (*opcode_stream >> 1) & 7;
+        reg_ip += 2 + (int8_t)opcode_stream[1] * (inv ^ (flags[jxx_dec_a[idx]] || flags[jxx_dec_b[idx]] || flags[jxx_dec_c[idx]] ^ flags[jxx_dec_d[idx]]));
+        break;
+      }
+
+      // JMP disp8
+      case 0xeb:
+        reg_ip += 2 + (int8_t)opcode_stream[1];
+        break;
+
+      // CLC|STC|CLI|STI|CLD|STD
+      case 0xf8 ... 0xfd:
+      {
+        static const int FADDR[3] = { CF_ADDR, IF_ADDR, DF_ADDR };
+        flags[FADDR[(*opcode_stream >> 1) & 3]] = *opcode_stream & 1;
+        ++reg_ip;
+        break;
+      }
+
+      // JCXZ
+      case 0xe3:
+        reg_ip += 2 + !regs16[REG_CX] * (int8_t)opcode_stream[1];
+        break;
+
+      // CALL disp16
+      case 0xe8:
+        regs16[REG_SP] -= 2;
+        MEM16(16 * regs16[REG_SS] + regs16[REG_SP]) = reg_ip + 3;
+        #ifndef TESTING_CPU
+        ASM_MEMW
+        #endif
+        reg_ip += 3 + *(uint16_t*)(opcode_stream + 1);
+        break;
+
+      // RET (intrasegment)
+      case 0xc3:
+        reg_ip = MEM16(16 * regs16[REG_SS] + regs16[REG_SP]);
+        regs16[REG_SP] += 2;
+        break;
+
+      // POP reg
+      case 0x58 ... 0x5f:
+        regs16[REG_SP] += 2;  // SP may be read from stack, so we have to increment here
+        regs16[*opcode_stream & 7] = MEM16(16 * regs16[REG_SS] + (uint16_t)(regs16[REG_SP] - 2));
+        ++reg_ip;
+        break;
+
+      // PUSH reg
+      case 0x50 ... 0x57:
+        regs16[REG_SP] -= 2;
+        MEM16(16 * regs16[REG_SS] + regs16[REG_SP]) = regs16[*opcode_stream & 7];
+        ++reg_ip;
+        break;
+
+      // MOV reg8, data8
+      case 0xb0 ... 0xb7:
+        regs8[((*opcode_stream >> 2) & 1) + (*opcode_stream & 3) * 2] = *(opcode_stream + 1);
+        reg_ip += 2;
+        break;
+
+      // MOV reg16, data16
+      case 0xb8 ... 0xbf:
+        regs16[*opcode_stream & 0x7] = *(uint16_t*)(opcode_stream + 1);
+        reg_ip += 3;
+        break;
+
+      // POP ES
+      // POP CS (actually undefined on 8086)
+      // POP SS
+      // POP DS
+      case 0x07:
+      case 0x0f:
+      case 0x17:
+      case 0x1f:
+        regs16[REG_ES + (*opcode_stream >> 3)] = MEM16(16 * regs16[REG_SS] + regs16[REG_SP]);
+        regs16[REG_SP] += 2;
+        ++reg_ip;
+        break;
+
+      default:
+        stepEx(opcode_stream);
+        break;
+
     }
 
-    // JMP disp8
-    case 0xeb:
-      reg_ip += 2 + (int8_t)opcode_stream[1];
-      break;
-
-    // CLC|STC|CLI|STI|CLD|STD
-    case 0xf8 ... 0xfd:
-    {
-      static const int FADDR[3] = { CF_ADDR, IF_ADDR, DF_ADDR };
-      flags[FADDR[(*opcode_stream >> 1) & 3]] = *opcode_stream & 1;
-      ++reg_ip;
-      break;
-    }
-
-    // JCXZ
-    case 0xe3:
-      reg_ip += 2 + !regs16[REG_CX] * (int8_t)opcode_stream[1];
-      break;
-
-    // CALL disp16
-    case 0xe8:
-      regs16[REG_SP] -= 2;
-      MEM16(16 * regs16[REG_SS] + regs16[REG_SP]) = reg_ip + 3;
-      #ifndef TESTING_CPU
-      asm(" MEMW");
-      #endif
-      reg_ip += 3 + *(uint16_t*)(opcode_stream + 1);
-      break;
-
-    // RET (intrasegment)
-    case 0xc3:
-      reg_ip = MEM16(16 * regs16[REG_SS] + regs16[REG_SP]);
-      regs16[REG_SP] += 2;
-      break;
-
-    // POP reg
-    case 0x58 ... 0x5f:
-      regs16[REG_SP] += 2;  // SP may be read from stack, so we have to increment here
-      regs16[*opcode_stream & 7] = MEM16(16 * regs16[REG_SS] + (uint16_t)(regs16[REG_SP] - 2));
-      ++reg_ip;
-      break;
-
-    // PUSH reg
-    case 0x50 ... 0x57:
-      regs16[REG_SP] -= 2;
-      MEM16(16 * regs16[REG_SS] + regs16[REG_SP]) = regs16[*opcode_stream & 7];
-      ++reg_ip;
-      break;
-
-    // MOV reg8, data8
-    case 0xb0 ... 0xb7:
-      regs8[((*opcode_stream >> 2) & 1) + (*opcode_stream & 3) * 2] = *(opcode_stream + 1);
-      reg_ip += 2;
-      break;
-
-    // MOV reg16, data16
-    case 0xb8 ... 0xbf:
-      regs16[*opcode_stream & 0x7] = *(uint16_t*)(opcode_stream + 1);
-      reg_ip += 3;
-      break;
-
-    // POP ES
-    // POP CS (actually undefined on 8086)
-    // POP SS
-    // POP DS
-    case 0x07:
-    case 0x0f:
-    case 0x17:
-    case 0x1f:
-      regs16[REG_ES + (*opcode_stream >> 3)] = MEM16(16 * regs16[REG_SS] + regs16[REG_SP]);
-      regs16[REG_SP] += 2;
-      ++reg_ip;
-      break;
-
-    default:
-      stepEx(opcode_stream);
-      break;
-
-  }
+  } while (seg_override_en > 1 || rep_override_en > 1);
 
   // Application has set trap flag, so fire INT 1
   if (trap_flag) {
@@ -933,7 +992,7 @@ void IRAM_ATTR i8086::step()
   trap_flag = FLAG_TF;
 
   // Check for interrupts triggered by system interfaces
-  if (!seg_override_en && !rep_override_en && FLAG_IF && !FLAG_TF && s_pendingIRQ) {
+  if (FLAG_IF && !FLAG_TF && s_pendingIRQ) {
     pc_interrupt(s_pendingIRQIndex);
     s_pendingIRQ = false;
   }
@@ -975,8 +1034,8 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       i_data1 = (int8_t) i_data1;
 
     int idx = 4 * !i_mod;
-    op_to_addr = rm_addr = i_mod < 3 ? 16 * regs16[seg_override_en ? seg_override : instr_table_lookup[idx + 3][i_rm]] + (uint16_t)(regs16[instr_table_lookup[idx + 1][i_rm]] + instr_table_lookup[idx + 2][i_rm] * i_data1 + regs16[instr_table_lookup[idx][i_rm]]) : (REGS_BASE + (i_w ? 2 * i_rm : (2 * i_rm + i_rm / 4) & 7));
-    op_from_addr = REGS_BASE + (i_w ? 2 * i_reg : (2 * i_reg + i_reg / 4) & 7);
+    op_to_addr = rm_addr = i_mod < 3 ? 16 * regs16[seg_override_en ? seg_override : instr_table_lookup[idx + 3][i_rm]] + (uint16_t)(regs16[instr_table_lookup[idx + 1][i_rm]] + instr_table_lookup[idx + 2][i_rm] * i_data1 + regs16[instr_table_lookup[idx][i_rm]]) : (regs_offset + (i_w ? 2 * i_rm : (2 * i_rm + i_rm / 4) & 7));
+    op_from_addr = regs_offset + (i_w ? 2 * i_reg : (2 * i_reg + i_reg / 4) & 7);
     if (i_d) {
       auto t = op_from_addr;
       op_from_addr = rm_addr;
@@ -992,19 +1051,19 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       i_d = 0;
       i_reg = i_reg4bit;
       int idx = 4 * !i_mod;
-      op_to_addr = rm_addr = i_mod < 3 ? 16 * regs16[seg_override_en ? seg_override : instr_table_lookup[idx + 3][i_rm]] + (uint16_t)(regs16[instr_table_lookup[idx + 1][i_rm]] + instr_table_lookup[idx + 2][i_rm] * i_data1 + regs16[instr_table_lookup[idx][i_rm]]) : (REGS_BASE + 2 * i_rm);
-      op_from_addr = REGS_BASE + 2 * i_reg;
+      op_to_addr = rm_addr = i_mod < 3 ? 16 * regs16[seg_override_en ? seg_override : instr_table_lookup[idx + 3][i_rm]] + (uint16_t)(regs16[instr_table_lookup[idx + 1][i_rm]] + instr_table_lookup[idx + 2][i_rm] * i_data1 + regs16[instr_table_lookup[idx][i_rm]]) : (regs_offset + 2 * i_rm);
+      op_from_addr = regs_offset + 2 * i_reg;
       i_reg = extra;
     } // not break!
     case 5: // INC|DEC|JMP|CALL|PUSH
       if (i_reg < 2) {
         // INC|DEC
         if (i_w) {
-          op_dest = MEM16(op_from_addr);
-          op_result = MEM16(op_from_addr) += 1 - 2 * i_reg;
+          op_dest = RMEM16(op_from_addr);
+          op_result = WMEM16(op_from_addr, (uint16_t)op_dest + 1 - 2 * i_reg);
         } else {
-          op_dest = MEM8(op_from_addr);
-          op_result = MEM8(op_from_addr) += 1 - 2 * i_reg;
+          op_dest = RMEM8(op_from_addr);
+          op_result = WMEM8(op_from_addr, (uint16_t)op_dest + 1 - 2 * i_reg);
         }
         op_source = 1;
         set_AF_OF_arith(op_result, i_w);
@@ -1013,6 +1072,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
           set_opcode(0x10); // Decode like ADC
       } else if (i_reg != 6) {
         // JMP|CALL
+        uint16_t jumpTo = i_w ? MEM16(op_from_addr) : MEM8(op_from_addr); // to avoid ASM_MEMW
         if (i_reg - 3 == 0) {
           // CALL (far)
           i_w = 1;
@@ -1029,13 +1089,8 @@ void i8086::stepEx(uint8_t const * opcode_stream)
           // JMP|CALL (far)
           regs16[REG_CS] = MEM16(op_from_addr + 2);
         }
-        if (i_w) {
-          reg_ip = MEM16(op_from_addr);
-        } else {
-          reg_ip = MEM8(op_from_addr);
-        }
-        set_opcode(0x9A); // Decode like CALL
-        calcIP = false;
+        reg_ip = jumpTo;
+        return; // no calc IP, no flags
       } else {
         // PUSH
         i_w = 1;
@@ -1051,28 +1106,26 @@ void i8086::stepEx(uint8_t const * opcode_stream)
           set_opcode(0x20); // Decode like AND
           reg_ip += i_w + 1;
           if (i_w) {
-            op_dest = MEM16(op_to_addr);
+            op_dest = RMEM16(op_to_addr);
             op_source = (uint16_t)i_data2;
             op_result = (uint16_t)(op_dest & op_source);
           } else {
-            op_dest = MEM8(op_to_addr);
+            op_dest = RMEM8(op_to_addr);
             op_source = (uint8_t)i_data2;
             op_result = (uint8_t)(op_dest & op_source);
           }
           break;
         case 2: // NOT
-          if (i_w) {
-            MEM16(op_to_addr) = ~MEM16(op_from_addr);
-          } else {
-            MEM8(op_to_addr) = ~ MEM8(op_from_addr);
-          }
+          if (i_w)
+            WMEM16(op_to_addr, ~RMEM16(op_from_addr));
+          else
+            WMEM8(op_to_addr, ~RMEM8(op_from_addr));
           break;
         case 3: // NEG
-          if (i_w) {
-            op_result = MEM16(op_to_addr) = -(op_source = MEM16(op_from_addr));
-          } else {
-            op_result = MEM8(op_to_addr) = -(op_source = MEM8(op_from_addr));
-          }
+          if (i_w)
+            op_result = WMEM16(op_to_addr, -(op_source = RMEM16(op_from_addr)));
+          else
+            op_result = WMEM8(op_to_addr, -(op_source = RMEM8(op_from_addr)));
           op_dest = 0;
           set_opcode(0x28); // Decode like SUB
           FLAG_CF = op_result > op_dest;
@@ -1080,12 +1133,12 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         case 4: // MUL
           if (i_w) {
             set_opcode(0x10);
-            regs16[REG_DX] = (op_result = MEM16(rm_addr) * regs16[REG_AX]) >> 16;
+            regs16[REG_DX] = (op_result = RMEM16(rm_addr) * regs16[REG_AX]) >> 16;
             regs16[REG_AX] = op_result;
             set_OF(set_CF(op_result - (uint16_t)op_result));
           } else {
             set_opcode(0x10);
-            regs16[REG_AX] = op_result = MEM8(rm_addr) * regs8[REG_AL];
+            regs16[REG_AX] = op_result = RMEM8(rm_addr) * regs8[REG_AL];
             set_OF(set_CF(op_result - (uint8_t) op_result));
           }
           break;
@@ -1093,12 +1146,12 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         {
           if (i_w) {
             set_opcode(0x10);
-            regs16[REG_DX] = (op_result = (int16_t)MEM16(rm_addr) * (int16_t)regs16[REG_AX]) >> 16;
+            regs16[REG_DX] = (op_result = (int16_t)RMEM16(rm_addr) * (int16_t)regs16[REG_AX]) >> 16;
             regs16[REG_AX] = op_result;
             set_OF(set_CF(op_result - (int16_t)op_result));
           } else {
             set_opcode(0x10);
-            regs16[REG_AX] = op_result = (int8_t)MEM8(rm_addr) * (int8_t)regs8[REG_AL];
+            regs16[REG_AX] = op_result = (int8_t)RMEM8(rm_addr) * (int8_t)regs8[REG_AL];
             set_OF(set_CF(op_result - (int8_t) op_result));
           }
           break;
@@ -1108,7 +1161,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
           int32_t scratch_int;
           int32_t scratch_uint, scratch2_uint;
           if (i_w) {
-            (scratch_int = MEM16(rm_addr))
+            (scratch_int = RMEM16(rm_addr))
             &&
             !(scratch2_uint = (uint32_t)(scratch_uint = (regs16[REG_DX] << 16) + regs16[REG_AX]) / scratch_int, scratch2_uint - (uint16_t) scratch2_uint)
             ?
@@ -1116,7 +1169,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
             :
             (raiseDivideByZeroInterrupt(), calcIP = false);
           } else {
-            (scratch_int = MEM8(rm_addr))
+            (scratch_int = RMEM8(rm_addr))
             &&
             !(scratch2_uint = (uint16_t)(scratch_uint = regs16[REG_AX]) / scratch_int, scratch2_uint - (uint8_t) scratch2_uint)
             ?
@@ -1131,7 +1184,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
           int32_t scratch_int;
           int32_t scratch2_uint, scratch_uint;
           if (i_w) {
-            (scratch_int = (int16_t)MEM16(rm_addr))
+            (scratch_int = (int16_t)RMEM16(rm_addr))
             &&
             !(scratch2_uint = (int)(scratch_uint = (regs16[REG_DX] << 16) + regs16[REG_AX]) / scratch_int, scratch2_uint - (int16_t) scratch2_uint)
             ?
@@ -1139,7 +1192,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
             :
             (raiseDivideByZeroInterrupt(), calcIP = false);
           } else {
-            (scratch_int = (int8_t)MEM8(rm_addr))
+            (scratch_int = (int8_t)RMEM8(rm_addr))
             &&
             !(scratch2_uint = (int16_t)(scratch_uint = regs16[REG_AX]) / scratch_int, scratch2_uint - (int8_t) scratch2_uint)
             ?
@@ -1152,7 +1205,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       };
       break;
     case 7: // ADD|OR|ADC|SBB|AND|SUB|XOR|CMP AL/AX, immed
-      rm_addr = REGS_BASE;
+      rm_addr = regs_offset;
       i_data2 = i_data0;
       i_mod = 3;
       i_reg = extra;
@@ -1161,7 +1214,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
     case 8: // ADD|OR|ADC|SBB|AND|SUB|XOR|CMP reg, immed
       op_to_addr = rm_addr;
       regs16[REG_SCRATCH] = (i_d |= !i_w) ? (int8_t) i_data2 : i_data2;
-      op_from_addr = REGS_BASE + 2 * REG_SCRATCH;
+      op_from_addr = regs_offset + 2 * REG_SCRATCH;
       reg_ip += !i_d + 1;
       set_opcode(0x08 * (extra = i_reg));
       // not break!
@@ -1170,15 +1223,15 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         case 0: // ADD
         {
           if (i_w) {
-            op_dest   = MEM16(op_to_addr);
-            op_source = MEM16(op_from_addr);
+            op_dest   = RMEM16(op_to_addr);
+            op_source = RMEM16(op_from_addr);
             op_result = (uint16_t)(op_dest + op_source);
-            MEM16(op_to_addr) = op_result;
+            WMEM16(op_to_addr, op_result);
           } else {
-            op_dest   = MEM8(op_to_addr);
-            op_source = MEM8(op_from_addr);
+            op_dest   = RMEM8(op_to_addr);
+            op_source = RMEM8(op_from_addr);
             op_result = (uint8_t)(op_dest + op_source);
-            MEM8(op_to_addr) = op_result;
+            WMEM8(op_to_addr, op_result);
           }
           FLAG_CF = op_result < op_dest;
           break;
@@ -1186,13 +1239,13 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         case 1: // OR
         {
           if (i_w) {
-            op_dest   = MEM16(op_to_addr);
-            op_source = MEM16(op_from_addr);
+            op_dest   = RMEM16(op_to_addr);
+            op_source = RMEM16(op_from_addr);
             op_result = op_dest | op_source;
             WMEM16(op_to_addr, op_result);
           } else {
-            op_dest   = MEM8(op_to_addr);
-            op_source = MEM8(op_from_addr);
+            op_dest   = RMEM8(op_to_addr);
+            op_source = RMEM8(op_from_addr);
             op_result = op_dest | op_source;
             WMEM8(op_to_addr, op_result);
           }
@@ -1200,26 +1253,26 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         }
         case 2: // ADC
           if (i_w) {
-            op_dest   = MEM16(op_to_addr);
-            op_source = MEM16(op_from_addr);
-            op_result = MEM16(op_to_addr) = op_dest + FLAG_CF + op_source;
+            op_dest   = RMEM16(op_to_addr);
+            op_source = RMEM16(op_from_addr);
+            op_result = WMEM16(op_to_addr, op_dest + FLAG_CF + op_source);
           } else {
-            op_dest   = MEM8(op_to_addr);
-            op_source = MEM8(op_from_addr);
-            op_result = MEM8(op_to_addr) = op_dest + FLAG_CF + op_source;
+            op_dest   = RMEM8(op_to_addr);
+            op_source = RMEM8(op_from_addr);
+            op_result = WMEM8(op_to_addr, op_dest + FLAG_CF + op_source);
           }
           set_CF((FLAG_CF && (op_result == op_dest)) || (+op_result < +(int) op_dest));
           set_AF_OF_arith(op_result, i_w);
           break;
         case 3: // SBB
           if (i_w) {
-            op_dest   = MEM16(op_to_addr);
-            op_source = MEM16(op_from_addr);
-            op_result = MEM16(op_to_addr) = op_dest - (FLAG_CF + op_source);
+            op_dest   = RMEM16(op_to_addr);
+            op_source = RMEM16(op_from_addr);
+            op_result = WMEM16(op_to_addr, op_dest - (FLAG_CF + op_source));
           } else {
-            op_dest   = MEM8(op_to_addr);
-            op_source = MEM8(op_from_addr);
-            op_result = MEM8(op_to_addr) = op_dest - (FLAG_CF + op_source);
+            op_dest   = RMEM8(op_to_addr);
+            op_source = RMEM8(op_from_addr);
+            op_result = WMEM8(op_to_addr, op_dest - (FLAG_CF + op_source));
           }
           set_CF((FLAG_CF && (op_result == op_dest)) || (-op_result < -(int) op_dest));
           set_AF_OF_arith(op_result, i_w);
@@ -1227,13 +1280,13 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         case 4: // AND
         {
           if (i_w) {
-            op_dest   = MEM16(op_to_addr);
-            op_source = MEM16(op_from_addr);
+            op_dest   = RMEM16(op_to_addr);
+            op_source = RMEM16(op_from_addr);
             op_result = op_dest & op_source;
             WMEM16(op_to_addr, op_result);
           } else {
-            op_dest   = MEM8(op_to_addr);
-            op_source = MEM8(op_from_addr);
+            op_dest   = RMEM8(op_to_addr);
+            op_source = RMEM8(op_from_addr);
             op_result = op_dest & op_source;
             WMEM8(op_to_addr, op_result);
           }
@@ -1241,26 +1294,26 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         }
         case 5: // SUB
           if (i_w) {
-            op_dest   = MEM16(op_to_addr);
-            op_source = MEM16(op_from_addr);
-            op_result = MEM16(op_to_addr) = op_dest - op_source;
+            op_dest   = RMEM16(op_to_addr);
+            op_source = RMEM16(op_from_addr);
+            op_result = WMEM16(op_to_addr, op_dest - op_source);
           } else {
-            op_dest   = MEM8(op_to_addr);
-            op_source = MEM8(op_from_addr);
-            op_result = MEM8(op_to_addr) = op_dest - op_source;
+            op_dest   = RMEM8(op_to_addr);
+            op_source = RMEM8(op_from_addr);
+            op_result = WMEM8(op_to_addr, op_dest - op_source);
           }
           FLAG_CF = op_result > op_dest;
           break;
         case 6: // XOR
         {
           if (i_w) {
-            op_dest   = MEM16(op_to_addr);
-            op_source = MEM16(op_from_addr);
+            op_dest   = RMEM16(op_to_addr);
+            op_source = RMEM16(op_from_addr);
             op_result = op_dest ^ op_source;
             WMEM16(op_to_addr, op_result);
           } else {
-            op_dest   = MEM8(op_to_addr);
-            op_source = MEM8(op_from_addr);
+            op_dest   = RMEM8(op_to_addr);
+            op_source = RMEM8(op_from_addr);
             op_result = op_dest ^ op_source;
             WMEM8(op_to_addr, op_result);
           }
@@ -1268,20 +1321,20 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         }
         case 7: // CMP
           if (i_w) {
-            op_dest   = MEM16(op_to_addr);
-            op_source = MEM16(op_from_addr);
+            op_dest   = RMEM16(op_to_addr);
+            op_source = RMEM16(op_from_addr);
           } else {
-            op_dest   = MEM8(op_to_addr);
-            op_source = MEM8(op_from_addr);
+            op_dest   = RMEM8(op_to_addr);
+            op_source = RMEM8(op_from_addr);
           }
           op_result = op_dest - op_source;
           FLAG_CF = op_result > op_dest;
           break;
         case 8: // MOV
           if (i_w) {
-            WMEM16(op_to_addr, MEM16(op_from_addr));
+            WMEM16(op_to_addr, RMEM16(op_from_addr));
           } else {
-            WMEM8(op_to_addr, MEM8(op_from_addr));
+            WMEM8(op_to_addr, RMEM8(op_from_addr));
           }
           break;
       };
@@ -1292,11 +1345,15 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         i_w = 1;
         i_reg += 8;
         int32_t scratch2_uint = 4 * !i_mod;
-        rm_addr = i_mod < 3 ? 16 * regs16[seg_override_en ? seg_override : instr_table_lookup[scratch2_uint + 3][i_rm]] + (uint16_t)(regs16[instr_table_lookup[scratch2_uint + 1][i_rm]] + instr_table_lookup[scratch2_uint + 2][i_rm] * i_data1 + regs16[instr_table_lookup[scratch2_uint][i_rm]]) : (REGS_BASE + (2 * i_rm));
+        rm_addr = i_mod < 3 ?
+                              16 * regs16[seg_override_en ?
+                                                            seg_override
+                                                          : instr_table_lookup[scratch2_uint + 3][i_rm]] + (uint16_t)(regs16[instr_table_lookup[scratch2_uint + 1][i_rm]] + instr_table_lookup[scratch2_uint + 2][i_rm] * i_data1 + regs16[instr_table_lookup[scratch2_uint][i_rm]])
+                            : (regs_offset + (2 * i_rm));
         if (i_d) {
-          regs16[i_reg] = MEM16(rm_addr);
+          regs16[i_reg] = RMEM16(rm_addr);
         } else {
-          MEM16(rm_addr) = regs16[i_reg];
+          WMEM16(rm_addr, regs16[i_reg]);
         }
       } else if (!i_d) {  // i_w == 1 && i_d == 0
         // LEA
@@ -1305,7 +1362,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       } else {  // i_w == 1 && i_d == 1
         // POP
         regs16[REG_SP] += 2;
-        MEM16(rm_addr) = MEM16(16 * regs16[REG_SS] + (uint16_t)(-2 + regs16[REG_SP]));
+        WMEM16(rm_addr, RMEM16(16 * regs16[REG_SS] + (uint16_t)(-2 + regs16[REG_SP])));
       }
       break;
     case 11: // MOV AL/AX, [loc]
@@ -1318,17 +1375,16 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         }
       } else {
         if (i_w) {
-          regs16[REG_AX] = MEM16(rm_addr);
+          regs16[REG_AX] = RMEM16(rm_addr);
         } else {
-          regs8[REG_AL] = MEM8(rm_addr);
+          regs8[REG_AL] = RMEM8(rm_addr);
         }
       }
       reg_ip += 3;
-      calcIP = false;
-      break;
+      return; // no calc IP, no flags
     case 12: // ROL|ROR|RCL|RCR|SHL|SHR|???|SAR reg/MEM, 1/CL/imm (80186)
     {
-      uint16_t scratch2_uint = (1 & (i_w ? * (int16_t *) & MEM8(rm_addr) : MEM8(rm_addr)) >> (8 * (i_w + 1) - 1));
+      uint16_t scratch2_uint = (1 & (i_w ? (int16_t)RMEM16(rm_addr) : RMEM8(rm_addr)) >> (8 * (i_w + 1) - 1));
       uint16_t scratch_uint  = extra ? // xxx reg/MEM, imm
         (int8_t) i_data1 : // xxx reg/MEM, CL
         i_d ?
@@ -1338,25 +1394,25 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         if (i_reg < 4) {
           // Rotate operations
           scratch_uint %= i_reg / 2 + 8 * (i_w + 1);
-          scratch2_uint = i_w ? MEM16(rm_addr) : MEM8(rm_addr);
+          scratch2_uint = i_w ? RMEM16(rm_addr) : RMEM8(rm_addr);
         }
         if (i_reg & 1) {
           // Rotate/shift right operations
           if (i_w) {
-            op_dest   = MEM16(rm_addr);
-            op_result = MEM16(rm_addr) >>= scratch_uint;
+            op_dest   = RMEM16(rm_addr);
+            op_result = WMEM16(rm_addr, (uint16_t)op_dest >> scratch_uint);
           } else {
-            op_dest   = MEM8(rm_addr);
-            op_result = MEM8(rm_addr) >>= (uint8_t)scratch_uint;
+            op_dest   = RMEM8(rm_addr);
+            op_result = WMEM8(rm_addr, (uint8_t)op_dest >> (uint8_t)scratch_uint);
           }
         } else {
           // Rotate/shift left operations
           if (i_w) {
-            op_dest   = MEM16(rm_addr);
-            op_result = MEM16(rm_addr) <<= scratch_uint;
+            op_dest   = RMEM16(rm_addr);
+            op_result = WMEM16(rm_addr, (uint16_t)op_dest << scratch_uint);
           } else {
-            op_dest   = MEM8(rm_addr);
-            op_result = MEM8(rm_addr) <<= (uint8_t)scratch_uint;
+            op_dest   = RMEM8(rm_addr);
+            op_result = WMEM8(rm_addr, (uint8_t)op_dest << (uint8_t)scratch_uint);
           }
         }
         if (i_reg > 3) // Shift operations
@@ -1368,11 +1424,11 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       switch (i_reg) {
         case 0: // ROL
           if (i_w) {
-            op_dest = MEM16(rm_addr);
-            op_result = MEM16(rm_addr) += (op_source = scratch2_uint >> (16 - scratch_uint));
+            op_dest   = RMEM16(rm_addr);
+            op_result = WMEM16(rm_addr, (uint16_t)op_dest + (op_source = scratch2_uint >> (16 - scratch_uint)));
           } else {
-            op_dest = MEM8(rm_addr);
-            op_result = MEM8(rm_addr) += (op_source = (uint8_t)scratch2_uint >> (8 - scratch_uint));
+            op_dest   = RMEM8(rm_addr);
+            op_result = WMEM8(rm_addr, (uint8_t)op_dest + (op_source = (uint8_t)scratch2_uint >> (8 - scratch_uint)));
           }
           if (scratch_uint) // fab: zero shift/rotation doesn't change CF or OF ("rotate.asm" and "shift.asm" tests)
             set_OF((1 & op_result >> (8 * (i_w + 1) - 1)) ^ set_CF(op_result & 1));
@@ -1380,33 +1436,33 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         case 1: // ROR
           scratch2_uint &= (1 << scratch_uint) - 1;
           if (i_w) {
-            op_dest = MEM16(rm_addr);
-            op_result = MEM16(rm_addr) += (op_source = scratch2_uint << (16 - scratch_uint));
+            op_dest   = RMEM16(rm_addr);
+            op_result = WMEM16(rm_addr, (uint16_t)op_dest + (op_source = scratch2_uint << (16 - scratch_uint)));
           } else {
-            op_dest = MEM8(rm_addr);
-            op_result = MEM8(rm_addr) += (op_source = (uint8_t)scratch2_uint << (8 - scratch_uint));
+            op_dest   = RMEM8(rm_addr);
+            op_result = WMEM8(rm_addr, (uint8_t)op_dest + (op_source = (uint8_t)scratch2_uint << (8 - scratch_uint)));
           }
           if (scratch_uint) // fab: zero shift/rotation doesn't change CF or OF ("rotate.asm" and "shift.asm" tests)
             set_OF((1 & (i_w ? (int16_t)op_result * 2 : op_result * 2) >> (8 * (i_w + 1) - 1)) ^ set_CF((1 & (i_w ? (int16_t)op_result : op_result) >> (8 * (i_w + 1) - 1))));
           break;
         case 2: // RCL
           if (i_w) {
-            op_dest = MEM16(rm_addr);
-            op_result = MEM16(rm_addr) += (FLAG_CF << (scratch_uint - 1)) + (op_source = scratch2_uint >> (17 - scratch_uint));
+            op_dest   = RMEM16(rm_addr);
+            op_result = WMEM16(rm_addr, (uint16_t)op_dest + (FLAG_CF << (scratch_uint - 1)) + (op_source = scratch2_uint >> (17 - scratch_uint)));
           } else {
-            op_dest = MEM8(rm_addr);
-            op_result = MEM8(rm_addr) += (FLAG_CF << (scratch_uint - 1)) + (op_source = (uint8_t)scratch2_uint >> (9 - scratch_uint));
+            op_dest   = RMEM8(rm_addr);
+            op_result = WMEM8(rm_addr, (uint8_t)op_dest + (FLAG_CF << (scratch_uint - 1)) + (op_source = (uint8_t)scratch2_uint >> (9 - scratch_uint)));
           }
           if (scratch_uint) // fab: zero shift/rotation doesn't change CF or OF ("rotate.asm" and "shift.asm" tests)
             set_OF((1 & op_result >> (8 * (i_w + 1) - 1)) ^ set_CF(scratch2_uint & 1 << (8 * (i_w + 1) - scratch_uint)));
           break;
         case 3: // RCR
           if (i_w) {
-            op_dest = MEM16(rm_addr);
-            op_result = MEM16(rm_addr) += (FLAG_CF << (16 - scratch_uint)) + (op_source = scratch2_uint << (17 - scratch_uint));
+            op_dest   = RMEM16(rm_addr);
+            op_result = WMEM16(rm_addr, (uint16_t)op_dest + (FLAG_CF << (16 - scratch_uint)) + (op_source = scratch2_uint << (17 - scratch_uint)));
           } else {
-            op_dest = MEM8(rm_addr);
-            op_result = MEM8(rm_addr) += (FLAG_CF << (8 - scratch_uint)) + (op_source = (uint8_t)scratch2_uint << (9 - scratch_uint));
+            op_dest   = RMEM8(rm_addr);
+            op_result = WMEM8(rm_addr, (uint8_t)op_dest + (FLAG_CF << (8 - scratch_uint)) + (op_source = (uint8_t)scratch2_uint << (9 - scratch_uint)));
           }
           if (scratch_uint) { // fab: zero shift/rotation doesn't change CF or OF ("rotate.asm" and "shift.asm" tests)
             set_CF(scratch2_uint & 1 << (scratch_uint - 1));
@@ -1425,13 +1481,13 @@ void i8086::stepEx(uint8_t const * opcode_stream)
           scratch_uint < 8 * (i_w + 1) || set_CF(scratch2_uint);
           FLAG_OF = 0;
           if (i_w) {
-            op_dest = MEM16(rm_addr);
+            op_dest      = RMEM16(rm_addr);
             uint16_t u16 = (uint16_t)scratch2_uint * ~(((1 << 16) - 1) >> scratch_uint);
-            op_result = MEM16(rm_addr) = op_dest + (op_source = u16);
+            op_result    = WMEM16(rm_addr, op_dest + (op_source = u16));
           } else {
-            op_dest = MEM8(rm_addr);
+            op_dest    = RMEM8(rm_addr);
             uint8_t u8 = (uint8_t)scratch2_uint * ~(((1 << 8) - 1) >> scratch_uint);
-            op_result = MEM8(rm_addr) = op_dest + (op_source = u8);
+            op_result  = WMEM8(rm_addr, op_dest + (op_source = u8));
           }
           break;
       };
@@ -1467,34 +1523,33 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         }
       }
       reg_ip += i_d && i_w ? (int8_t) i_data0 : i_data0;
-      calcIP = false;
-      break;
+      return; // no calc IP, no flags
     case 15: // TEST reg, r/m
       if (i_w) {
-        op_result = MEM16(op_from_addr) & MEM16(op_to_addr);
+        op_result = RMEM16(op_from_addr) & RMEM16(op_to_addr);
       } else {
-        op_result = MEM8(op_from_addr) & MEM8(op_to_addr);
+        op_result = RMEM8(op_from_addr) & RMEM8(op_to_addr);
       }
       break;
     case 16: // XCHG AX, regs16
-    {
-      i_w = 1;
-      uint16_t t = regs16[REG_AX];
-      regs16[REG_AX] = regs16[i_reg4bit];
-      regs16[i_reg4bit] = t;
+      if (i_reg4bit != REG_AX) {
+        uint16_t t = regs16[REG_AX];
+        regs16[REG_AX] = regs16[i_reg4bit];
+        regs16[i_reg4bit] = t;
+      }
       ++reg_ip;
-      calcIP = false;
-      break;
-    }
+      return; // no calc ip, no flags
     case 24: // NOP|XCHG reg, r/m
-      if (i_w) {
-        uint16_t t = MEM16(op_to_addr);
-        WMEM16(op_to_addr, MEM16(op_from_addr));
-        WMEM16(op_from_addr, t);
-      } else {
-        uint16_t t = MEM8(op_to_addr);
-        WMEM8(op_to_addr, MEM8(op_from_addr));
-        WMEM8(op_from_addr, t);
+      if (op_to_addr != op_from_addr) {
+        if (i_w) {
+          uint16_t t = RMEM16(op_to_addr);
+          WMEM16(op_to_addr, RMEM16(op_from_addr));
+          WMEM16(op_from_addr, t);
+        } else {
+          uint16_t t = RMEM8(op_to_addr);
+          WMEM8(op_to_addr, RMEM8(op_from_addr));
+          WMEM8(op_from_addr, t);
+        }
       }
       break;
     case 17: // MOVSx (extra=0)|STOSx (extra=1)|LODSx (extra=2)
@@ -1503,16 +1558,22 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       if (i_w) {
         const int dec = (2 * FLAG_DF - 1) * 2;
         for (int32_t i = rep_override_en ? regs16[REG_CX] : 1; i; --i) {
-          uint16_t src = MEM16(extra & 1 ? REGS_BASE : 16 * regs16[seg] + regs16[REG_SI]);
-          WMEM16(extra < 2 ? 16 * regs16[REG_ES] + regs16[REG_DI] : REGS_BASE, src);
+          uint16_t src = extra & 1 ? regs16[REG_AX] : RMEM16(16 * regs16[seg] + regs16[REG_SI]);
+          if (extra < 2)
+            WMEM16(16 * regs16[REG_ES] + regs16[REG_DI], src);
+          else
+            regs16[REG_AX] = src;
           extra & 1 || (regs16[REG_SI] -= dec);
           extra & 2 || (regs16[REG_DI] -= dec);
         }
       } else {
         const int dec = (2 * FLAG_DF - 1);
         for (int32_t i = rep_override_en ? regs16[REG_CX] : 1; i; --i) {
-          uint8_t src = MEM8(extra & 1 ? REGS_BASE : 16 * regs16[seg] + regs16[REG_SI]);
-          WMEM8(extra < 2 ? 16 * regs16[REG_ES] + regs16[REG_DI] : REGS_BASE, src);
+          uint8_t src = extra & 1 ? regs8[REG_AL] : RMEM8(16 * regs16[seg] + regs16[REG_SI]);
+          if (extra < 2)
+            WMEM8(16 * regs16[REG_ES] + regs16[REG_DI], src);
+          else
+            regs8[REG_AL] = src;
           extra & 1 || (regs16[REG_SI] -= dec);
           extra & 2 || (regs16[REG_DI] -= dec);
         }
@@ -1520,8 +1581,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       if (rep_override_en)
         regs16[REG_CX] = 0;
       ++reg_ip;
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     }
     case 18: // CMPSx (extra=0)|SCASx (extra=1)
     {
@@ -1533,9 +1593,9 @@ void i8086::stepEx(uint8_t const * opcode_stream)
           op_dest = i_w ? regs16[REG_AX] : regs8[REG_AL];
           for (; count; rep_override_en || count--) {
             if (i_w) {
-              op_result = op_dest - (op_source = MEM16(16 * regs16[REG_ES] + regs16[REG_DI]));
+              op_result = op_dest - (op_source = RMEM16(16 * regs16[REG_ES] + regs16[REG_DI]));
             } else {
-              op_result = op_dest - (op_source = MEM8(16 * regs16[REG_ES] + regs16[REG_DI]));
+              op_result = op_dest - (op_source = RMEM8(16 * regs16[REG_ES] + regs16[REG_DI]));
             }
             regs16[REG_DI] -= incval;
             rep_override_en && !(--regs16[REG_CX] && ((!op_result) == rep_mode)) && (count = 0);
@@ -1545,11 +1605,11 @@ void i8086::stepEx(uint8_t const * opcode_stream)
           int scratch2_uint = seg_override_en ? seg_override : REG_DS;
           for (; count; rep_override_en || count--) {
             if (i_w) {
-              op_dest   = MEM16(16 * regs16[scratch2_uint] + regs16[REG_SI]);
-              op_result = op_dest - (op_source = MEM16(16 * regs16[REG_ES] + regs16[REG_DI]));
+              op_dest   = RMEM16(16 * regs16[scratch2_uint] + regs16[REG_SI]);
+              op_result = op_dest - (op_source = RMEM16(16 * regs16[REG_ES] + regs16[REG_DI]));
             } else {
-              op_dest   = MEM8(16 * regs16[scratch2_uint] + regs16[REG_SI]);
-              op_result = op_dest - (op_source = MEM8(16 * regs16[REG_ES] + regs16[REG_DI]));
+              op_dest   = RMEM8(16 * regs16[scratch2_uint] + regs16[REG_SI]);
+              op_result = op_dest - (op_source = RMEM8(16 * regs16[REG_ES] + regs16[REG_DI]));
             }
             regs16[REG_SI] -= incval;
             regs16[REG_DI] -= incval;
@@ -1578,8 +1638,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
         regs16[REG_SP] += 2;
       } else if (!i_d) // RET|RETF imm16
         regs16[REG_SP] += i_data0;
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     case 20: // MOV r/m, immed
       if (i_w) {
         WMEM16(op_from_addr, i_data2);
@@ -1608,14 +1667,12 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       rep_mode = i_w;
       seg_override_en && seg_override_en++;
       ++reg_ip;
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     case 25: // PUSH segreg
       regs16[REG_SP] -= 2;
       MEM16(16 * regs16[REG_SS] + regs16[REG_SP]) = regs16[extra];
       ++reg_ip;
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     case 28: // DAA/DAS
       // fab: fixed to pass test186
       i_w = 0;
@@ -1654,20 +1711,17 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       MEM16(16 * regs16[REG_SS] + regs16[REG_SP]) = reg_ip + 5;
       regs16[REG_CS] = i_data2;
       reg_ip = i_data0;
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     case 33: // PUSHF
       regs16[REG_SP] -= 2;
       MEM16(16 * regs16[REG_SS] + regs16[REG_SP]) = make_flags();
       ++reg_ip;
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     case 34: // POPF
       regs16[REG_SP] += 2;
       set_flags(MEM16(16 * regs16[REG_SS] + (uint16_t)(-2 + regs16[REG_SP])));
       ++reg_ip;
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     case 35: // SAHF
       set_flags((make_flags() & 0xFF00) + regs8[REG_AH]);
       break;
@@ -1676,24 +1730,21 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       break;
     case 37: // LES|LDS reg, r/m
       i_w = i_d = 1;
-      MEM16(REGS_BASE + (2 * i_reg)) = MEM16(rm_addr);
-      regs16[extra / 2] = MEM16(rm_addr + 2);
+      regs16[i_reg] = RMEM16(rm_addr);
+      regs16[extra / 2] = RMEM16(rm_addr + 2);
       break;
     case 38: // INT 3
       ++reg_ip;
       pc_interrupt(3);
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     case 39: // INT imm8
       reg_ip += 2;
       pc_interrupt(i_data0);
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     case 40: // INTO
       ++reg_ip;
       FLAG_OF && pc_interrupt(4);
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     case 41: // AAM;
       if (i_data0 &= 0xFF) {
         regs8[REG_AH] = regs8[REG_AL] / i_data0;
@@ -1701,7 +1752,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       } else {
         // Divide by zero
         raiseDivideByZeroInterrupt();
-        calcIP = false;
+        return; // no calc ip, no flags
       }
       break;
     case 42: // AAD
@@ -1712,11 +1763,13 @@ void i8086::stepEx(uint8_t const * opcode_stream)
       regs8[REG_AL] = -FLAG_CF;
       break;
     case 44: // XLAT
-      regs8[REG_AL] = MEM8(16 * regs16[seg_override_en ? seg_override : REG_DS] + (uint16_t)(regs8[REG_AL] + regs16[REG_BX]));
-      break;
+      regs8[REG_AL] = RMEM8(16 * regs16[seg_override_en ? seg_override : REG_DS] + (uint16_t)(regs8[REG_AL] + regs16[REG_BX]));
+      ++reg_ip;
+      return; // no calc ip, no flags
     case 45: // CMC
       FLAG_CF ^= 1;
-      break;
+      ++reg_ip;
+      return; // no calc ip, no flags
     case 47: // TEST AL/AX, immed
       if (i_w) {
         op_result = regs16[REG_AX] & i_data0;
@@ -1730,8 +1783,7 @@ void i8086::stepEx(uint8_t const * opcode_stream)
     case 49: // HLT
       //printf("CPU HALT, IP = %04X:%04X, AX = %04X, BX = %04X, CX = %04X, DX = %04X\n", regs16[REG_CS], reg_ip, regs16[REG_AX], regs16[REG_BX], regs16[REG_CX], regs16[REG_DX]);
       s_halted = true;
-      calcIP = false;
-      break;
+      return; // no calc ip, no flags
     /*
     case 51: // 80186, NEC V20: ENTER
       printf("80186, NEC V20: ENTER\n");
