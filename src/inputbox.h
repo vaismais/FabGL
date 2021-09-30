@@ -41,7 +41,7 @@
 #include "fabglconf.h"
 #include "fabui.h"
 #include "fabutils.h"
-#include "dispdrivers/vga16controller.h"
+#include "dispdrivers/vgapalettedcontroller.h"
 #include "comdrivers/ps2controller.h"
 
 
@@ -58,10 +58,11 @@ enum class InputResult {
   ButtonExt0  = 1,       /**< Button Ext 0 pressed */
   ButtonExt1  = 2,       /**< Button Ext 1 pressed */
   ButtonExt2  = 3,       /**< Button Ext 3 pressed */
-  Cancel      = 4,       /**< Button CANCEL or ESC key pressed */
-  ButtonLeft  = 4,       /**< Left button (cancel) or ESC key pressed */
-  Enter       = 5,       /**< Button OK, ENTER or RETURN pressed */
-  ButtonRight = 5,       /**< Right button (OK), ENTER or RETURN pressed */
+  ButtonExt3  = 4,       /**< Button Ext 4 pressed */
+  Cancel      = 5,       /**< Button CANCEL or ESC key pressed */
+  ButtonLeft  = 5,       /**< Left button (cancel) or ESC key pressed */
+  Enter       = 6,       /**< Button OK, ENTER or RETURN pressed */
+  ButtonRight = 6,       /**< Right button (OK), ENTER or RETURN pressed */
 };
 
 
@@ -70,7 +71,15 @@ enum class InputResult {
 // InputForm
 
 
+class InputBox;
+
+
 struct InputForm {
+  InputForm(InputBox * inputBox_)
+    : inputBox(inputBox_)
+  {
+  }
+
   void init(uiApp * app_, bool modalDialog_);
 
   virtual void addControls()      = 0;
@@ -83,11 +92,11 @@ struct InputForm {
   void setExtButtons(char const * values[]);
 
 
-  static constexpr int BUTTONS  = 5;
+  static constexpr int BUTTONS  = 6;
+
+  InputBox *       inputBox;
 
   uiApp *          app;
-
-  RGB888           backgroundColor;
 
   char const *     titleText;
   char const *     buttonText[BUTTONS] = { };
@@ -129,6 +138,11 @@ struct InputApp : public uiApp {
 
 
 struct TextInputForm : public InputForm {
+  TextInputForm(InputBox * inputBox_)
+    : InputForm(inputBox_)
+  {
+  }
+
   void addControls();
   void calcRequiredSize();
   void finalize();
@@ -151,6 +165,11 @@ struct TextInputForm : public InputForm {
 
 
 struct MessageForm : public InputForm {
+  MessageForm(InputBox * inputBox_)
+    : InputForm(inputBox_)
+  {
+  }
+
   void addControls();
   void calcRequiredSize();
   void finalize();
@@ -167,6 +186,11 @@ struct MessageForm : public InputForm {
 
 
 struct SelectForm : public InputForm {
+  SelectForm(InputBox * inputBox_)
+    : InputForm(inputBox_)
+  {
+  }
+
   void addControls();
   void calcRequiredSize();
   void finalize();
@@ -192,6 +216,11 @@ struct SelectForm : public InputForm {
 
 
 struct ProgressForm : public InputForm {
+  ProgressForm(InputBox * inputBox_)
+    : InputForm(inputBox_)
+  {
+  }
+
   void addControls();
   void calcRequiredSize();
   void show();
@@ -232,10 +261,11 @@ public:
    * @brief Initializes InputBox from VGA modeline, using a VGA16Controller
    *
    * @param modeline Optional modeline (uses 640x480 resolution if not specified)
-   * @param viewPortWidth
-   * @param viewPortHeight
+   * @param viewPortWidth Viewport width (-1 = automatic)
+   * @param viewPortHeight Viewport height (-1 = automatic)
+   * @param displayColors Number of colors for the display (2, 4, 8 or 16)
    */
-  void begin(char const * modeline = nullptr, int viewPortWidth = -1, int viewPortHeight = -1);
+  void begin(char const * modeline = nullptr, int viewPortWidth = -1, int viewPortHeight = -1, int displayColors = 16);
 
   /**
    * @brief Initializes InputBox from already initialized display controller
@@ -279,7 +309,7 @@ public:
    *
    * Extended button texts are reset to empty values after every dialog
    *
-   * @param extButton A value from 0 to 2. 0 = leftmost button ... 2 = rightmost button
+   * @param extButton A value from 0 to 3. 0 = leftmost button ... 3 = rightmost button
    * @param value Button text
    */
   void setExtButton(int extButton, char const * value) { m_extButtonText[extButton] = value; }
@@ -486,11 +516,22 @@ public:
    *       ib.message("", "Operation Aborted");
    *     ib.end();
    */
-  template <typename Func> InputResult progressBox(char const * titleText, char const * buttonCancelText, bool hasProgressBar, int width, Func execFunc) {
-    ProgressForm form;
+  template <typename Func>
+  InputResult progressBox(char const * titleText, char const * buttonCancelText, bool hasProgressBar, int width, Func execFunc) {
+    ProgressForm form(this);
     form.execFunc = execFunc;
     return progressBoxImpl(form, titleText, buttonCancelText, hasProgressBar, width);
   }
+
+
+  // delegates
+
+  /**
+   * @brief Paint event delegate
+   */
+  Delegate<Canvas *> onPaint;
+  
+
 
 private:
 
@@ -499,7 +540,7 @@ private:
   void exec(InputForm * form);
 
   BitmappedDisplayController * m_dispCtrl;
-  VGA16Controller            * m_vga16Ctrl;
+  VGAPalettedController      * m_vgaCtrl;
   RGB888                       m_backgroundColor;
   uiApp *                      m_existingApp; // uiApp in case of running on existing app
   uint16_t                     m_autoOK;    // auto ok in seconds

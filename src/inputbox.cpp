@@ -26,6 +26,11 @@
 
 #include <string.h>
 
+#include "dispdrivers/vga2controller.h"
+#include "dispdrivers/vga4controller.h"
+#include "dispdrivers/vga8controller.h"
+#include "dispdrivers/vga16controller.h"
+
 #include "inputbox.h"
 
 
@@ -45,7 +50,7 @@ namespace fabgl {
 // InputBox
 
 InputBox::InputBox(uiApp * app)
-  : m_vga16Ctrl(nullptr),
+  : m_vgaCtrl(nullptr),
     m_backgroundColor(RGB888(64, 64, 64)),
     m_existingApp(app),
     m_autoOK(0)
@@ -59,13 +64,20 @@ InputBox::~InputBox()
 }
 
 
-void InputBox::begin(char const * modeline, int viewPortWidth, int viewPortHeight)
+void InputBox::begin(char const * modeline, int viewPortWidth, int viewPortHeight, int displayColors)
 {
   // setup display controller
-  m_vga16Ctrl = new VGA16Controller;
-  m_dispCtrl = m_vga16Ctrl;
-  m_vga16Ctrl->begin();
-  m_vga16Ctrl->setResolution(modeline ? modeline : VESA_640x480_75Hz, viewPortWidth, viewPortHeight);
+  if (displayColors <= 2)
+    m_vgaCtrl = new VGA2Controller;
+  else if (displayColors <= 4)
+    m_vgaCtrl = new VGA4Controller;
+  else if (displayColors <= 8)
+    m_vgaCtrl = new VGA8Controller;
+  else
+    m_vgaCtrl = new VGA16Controller;
+  m_dispCtrl = m_vgaCtrl;
+  m_vgaCtrl->begin();
+  m_vgaCtrl->setResolution(modeline ? modeline : VESA_640x480_75Hz, viewPortWidth, viewPortHeight);
 
   // setup keyboard and mouse
   if (!PS2Controller::initialized())
@@ -81,10 +93,10 @@ void InputBox::begin(BitmappedDisplayController * displayController)
 
 void InputBox::end()
 {
-  if (m_vga16Ctrl) {
-    m_vga16Ctrl->end();
-    delete m_vga16Ctrl;
-    m_vga16Ctrl = nullptr;
+  if (m_vgaCtrl) {
+    m_vgaCtrl->end();
+    delete m_vgaCtrl;
+    m_vgaCtrl = nullptr;
   }
 }
 
@@ -105,8 +117,7 @@ void InputBox::exec(InputForm * form)
 
 InputResult InputBox::textInput(char const * titleText, char const * labelText, char * inOutString, int maxLength, char const * buttonCancelText, char const * buttonOKText, bool passwordMode)
 {
-  TextInputForm form;
-  form.backgroundColor      = m_backgroundColor;
+  TextInputForm form(this);
   form.titleText            = titleText;
   form.labelText            = labelText;
   form.inOutString          = inOutString;
@@ -127,8 +138,7 @@ InputResult InputBox::textInput(char const * titleText, char const * labelText, 
 
 InputResult InputBox::message(char const * titleText, char const * messageText, char const * buttonCancelText, char const * buttonOKText)
 {
-  MessageForm form;
-  form.backgroundColor      = m_backgroundColor;
+  MessageForm form(this);
   form.titleText            = titleText;
   form.messageText          = messageText;
   form.buttonText[B_CANCEL] = buttonCancelText;
@@ -164,8 +174,7 @@ InputResult InputBox::messageFmt(char const * titleText, char const * buttonCanc
 
 int InputBox::select(char const * titleText, char const * messageText, char const * itemsText, char separator, char const * buttonCancelText, char const * buttonOKText)
 {
-  SelectForm form;
-  form.backgroundColor      = m_backgroundColor;
+  SelectForm form(this);
   form.titleText            = titleText;
   form.messageText          = messageText;
   form.items                = itemsText;
@@ -187,8 +196,7 @@ int InputBox::select(char const * titleText, char const * messageText, char cons
 
 InputResult InputBox::select(char const * titleText, char const * messageText, StringList * items, char const * buttonCancelText, char const * buttonOKText)
 {
-  SelectForm form;
-  form.backgroundColor      = m_backgroundColor;
+  SelectForm form(this);
   form.titleText            = titleText;
   form.messageText          = messageText;
   form.items                = nullptr;
@@ -210,8 +218,7 @@ InputResult InputBox::select(char const * titleText, char const * messageText, S
 
 int InputBox::menu(char const * titleText, char const * messageText, char const * itemsText, char separator)
 {
-  SelectForm form;
-  form.backgroundColor      = m_backgroundColor;
+  SelectForm form(this);
   form.titleText            = titleText;
   form.messageText          = messageText;
   form.items                = itemsText;
@@ -231,8 +238,7 @@ int InputBox::menu(char const * titleText, char const * messageText, char const 
 
 int InputBox::menu(char const * titleText, char const * messageText, StringList * items)
 {
-  SelectForm form;
-  form.backgroundColor      = m_backgroundColor;
+  SelectForm form(this);
   form.titleText            = titleText;
   form.messageText          = messageText;
   form.items                = nullptr;
@@ -252,7 +258,6 @@ int InputBox::menu(char const * titleText, char const * messageText, StringList 
 
 InputResult InputBox::progressBoxImpl(ProgressForm & form, char const * titleText, char const * buttonCancelText, bool hasProgressBar, int width)
 {
-  form.backgroundColor      = m_backgroundColor;
   form.titleText            = titleText;
   form.buttonText[B_CANCEL] = buttonCancelText;
   form.buttonText[B_OK]     = nullptr;
@@ -281,8 +286,12 @@ void InputForm::init(uiApp * app_, bool modalDialog_)
   app         = app_;
   modalDialog = modalDialog_;
 
-  if (!modalDialog)
-    app->rootWindow()->frameStyle().backgroundColor = backgroundColor;
+  if (!modalDialog) {
+    app->rootWindow()->frameStyle().backgroundColor = inputBox->backgroundColor();
+    app->rootWindow()->onPaint = [&]() {
+      inputBox->onPaint(app->canvas());
+    };
+  }
 
   font = &FONT_std_14;
 
@@ -398,8 +407,11 @@ void InputForm::doExit(int value)
 {
   if (modalDialog)
     mainFrame->exitModal(value);
-  else
+  else {
     app->quit(value);
+    // this avoids flickering of content painted in onPaint
+    app->rootWindow()->frameProps().fillBackground = false;
+  }
 }
 
 
@@ -420,7 +432,7 @@ void InputForm::setExtButtons(char const * values[])
 void TextInputForm::calcRequiredSize()
 {
   labelExtent     = app->canvas()->textExtent(font, labelText);
-  editExtent      = imin(maxLength * app->canvas()->textExtent(font, "M"), app->rootWindow()->clientSize().width / 2 - labelExtent);
+  editExtent      = imin(maxLength * app->canvas()->textExtent(font, "M") + 15, app->rootWindow()->clientSize().width - labelExtent);
   requiredWidth   = imax(requiredWidth, editExtent + labelExtent + 10);
   requiredHeight += font->height;
 }

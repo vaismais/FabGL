@@ -43,12 +43,16 @@
 #pragma GCC optimize ("O2")
 
 
+
+#define DUMPEVENTS 0
+
+
 namespace fabgl {
 
 
 
 // debug only!
-/*
+#if DUMPEVENTS
 void dumpEvent(uiEvent * event)
 {
   static int idx = 0;
@@ -111,7 +115,7 @@ void dumpEvent(uiEvent * event)
   }
   printf("\n");
 }
-//*/
+#endif
 
 
 
@@ -200,6 +204,7 @@ uiApp::~uiApp()
 int uiApp::run(BitmappedDisplayController * displayController, Keyboard * keyboard, Mouse * mouse)
 {
   m_displayController = displayController;
+  m_displayColors     = displayController->colorsCount();
 
   m_canvas = new Canvas(m_displayController);
 
@@ -258,8 +263,10 @@ int uiApp::run(BitmappedDisplayController * displayController, Keyboard * keyboa
     uiEvent event;
     if (getEvent(&event, -1)) {
 
-      // debug
-      //dumpEvent(&event);
+      #if DUMPEVENTS
+      printf("run(): ");
+      dumpEvent(&event);
+      #endif
 
       preprocessEvent(&event);
 
@@ -341,6 +348,11 @@ void uiApp::processEvents()
 {
   uiEvent event;
   while (getEvent(&event, 0)) {
+
+    #if DUMPEVENTS
+    printf("processEvents(): ");
+    dumpEvent(&event);
+    #endif
 
     preprocessEvent(&event);
 
@@ -789,6 +801,11 @@ bool uiApp::processModalWindowEvents(ModalWindowState * state, int timeout)
   // a new inner event loop...
   uiEvent event;
   while (getEvent(&event, timeout)) {
+
+    #if DUMPEVENTS
+    printf("processModalWindowEvents(): ");
+    dumpEvent(&event);
+    #endif
 
     if (m_modalWindow != state->window && event.dest == state->window) {
       // becomes modal when first message arrives
@@ -1319,6 +1336,7 @@ uiWindow::uiWindow(uiWindow * parent, const Point & pos, const Size & size, bool
   m_state.active    = false;
 
   if (app()) {
+    m_windowStyle.adaptToDisplayColors(app()->displayColors());
     m_canvas = app()->canvas();
     if (app()->style() && styleClassID)
       app()->style()->setStyle(this, styleClassID);
@@ -1879,8 +1897,11 @@ uiFrame::uiFrame(uiWindow * parent, char const * title, const Point & pos, const
     m_nextFreeFocusIndex(0)
 {
   objectType().uiFrame = true;
-  if (app() && app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_frameStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
   setTitle(title);
 }
 
@@ -2467,10 +2488,12 @@ uiButton::uiButton(uiWindow * parent, char const * text, const Point & pos, cons
   windowStyle().borderSize         = 1;
   windowStyle().focusedBorderSize  = 2;
   windowStyle().borderColor        = RGB888(64, 64, 64);
-  windowStyle().focusedBorderColor = RGB888(0, 0, 255);
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_buttonStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 
   setText(text);
 }
@@ -2525,7 +2548,12 @@ void uiButton::paintContent(Rect const & rect)
     y += (imax(textHeight, bitmapHeight) - textHeight) / 2;
   }
   canvas()->setGlyphOptions(GlyphOptions().FillBackground(false).DoubleWidth(0).Bold(false).Italic(false).Underline(false).Invert(0));
-  canvas()->setPenColor(m_buttonStyle.textColor);
+  if (isMouseOver())
+    canvas()->setPenColor(m_buttonStyle.mouseOverTextColor);
+  else if (m_down)
+    canvas()->setPenColor(m_buttonStyle.downTextColor);
+  else
+    canvas()->setPenColor(m_buttonStyle.textColor);
   canvas()->drawText(m_buttonStyle.textFont, x, y, m_text);
 }
 
@@ -2620,8 +2648,11 @@ uiTextEdit::uiTextEdit(uiWindow * parent, char const * text, const Point & pos, 
   windowStyle().borderColor   = RGB888(64, 64, 64);
   windowStyle().borderSize    = 1;
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_textEditStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 
   setText(text);
 }
@@ -2643,6 +2674,22 @@ void uiTextEdit::setText(char const * value)
     m_text = strdup("");
     m_textLength = 0;
   }
+}
+
+
+void uiTextEdit::setTextFmt(const char *format, ...)
+{
+  va_list ap;
+  va_start(ap, format);
+  int size = vsnprintf(nullptr, 0, format, ap) + 1;
+  if (size > 0) {
+    va_end(ap);
+    va_start(ap, format);
+    checkAllocatedSpace(size + 1);
+    vsnprintf(m_text, size, format, ap);
+    m_textLength = strlen(m_text);
+  }
+  va_end(ap);
 }
 
 
@@ -3078,8 +3125,11 @@ uiLabel::uiLabel(uiWindow * parent, char const * text, const Point & pos, const 
   windowProps().focusable = false;
   windowStyle().borderSize = 0;
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_labelStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 
   m_autoSize = (size.width == 0 && size.height == 0);
 
@@ -3190,8 +3240,11 @@ uiImage::uiImage(uiWindow * parent, Bitmap const * bitmap, const Point & pos, co
   windowProps().focusable = false;
   windowStyle().borderSize = 0;
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_imageStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 
   m_autoSize = (size.width == 0 && size.height == 0);
 
@@ -3261,8 +3314,11 @@ uiPanel::uiPanel(uiWindow * parent, const Point & pos, const Size & size, bool v
   windowStyle().borderSize = 1;
   windowStyle().borderColor = RGB888(64, 64, 64);
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_panelStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 }
 
 
@@ -3315,8 +3371,11 @@ uiPaintBox::uiPaintBox(uiWindow * parent, const Point & pos, const Size & size, 
   windowStyle().borderSize  = 1;
   windowStyle().borderColor = RGB888(64, 64, 64);
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_paintBoxStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 }
 
 
@@ -3438,8 +3497,11 @@ uiScrollableControl::uiScrollableControl(uiWindow * parent, const Point & pos, c
 {
   objectType().uiScrollableControl = true;
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_scrollableControlStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 }
 
 
@@ -3782,8 +3844,11 @@ uiCustomListBox::uiCustomListBox(uiWindow * parent, const Point & pos, const Siz
   windowStyle().borderSize  = 1;
   windowStyle().borderColor = RGB888(64, 64, 64);
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_listBoxStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 }
 
 
@@ -4254,8 +4319,11 @@ uiCustomComboBox::uiCustomComboBox(uiWindow * parent, const Point & pos, const S
 
   windowStyle().borderSize = 0;
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_comboBoxStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 }
 
 
@@ -4521,10 +4589,12 @@ uiCheckBox::uiCheckBox(uiWindow * parent, const Point & pos, const Size & size, 
   windowStyle().borderSize         = 1;
   windowStyle().focusedBorderSize  = 2;
   windowStyle().borderColor        = RGB888(64, 64, 64);
-  windowStyle().focusedBorderColor = RGB888(0, 0, 255);
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_checkBoxStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 }
 
 
@@ -4547,12 +4617,12 @@ void uiCheckBox::paintCheckBox()
     Rect r = rect(uiOrigin::Window).shrink(5);
     switch (m_kind) {
       case uiCheckBoxKind::CheckBox:
-        canvas()->setPenColor(m_checkBoxStyle.foregroundColor);
+        canvas()->setPenColor(isMouseOver() ? m_checkBoxStyle.mouseOverForegroundColor : m_checkBoxStyle.foregroundColor);
         canvas()->drawLine(r.X1, r.Y2 - r.height() / 3, r.X1 + r.width() / 3, r.Y2);
         canvas()->drawLine(r.X1 + r.width() / 3, r.Y2, r.X2, r.Y1);
         break;
       case uiCheckBoxKind::RadioButton:
-        canvas()->setBrushColor(m_checkBoxStyle.foregroundColor);
+        canvas()->setBrushColor(isMouseOver() ? m_checkBoxStyle.mouseOverForegroundColor : m_checkBoxStyle.foregroundColor);
         canvas()->fillEllipse(r.X1 + r.width() / 2 - 1, r.Y1 + r.height() / 2 - 1, r.width(), r.height());
         break;
     }
@@ -4666,12 +4736,14 @@ uiSlider::uiSlider(uiWindow * parent, const Point & pos, const Size & size, uiOr
 
   windowStyle().borderSize         = 1;
   windowStyle().borderColor        = RGB888(255, 255, 255);
-  windowStyle().focusedBorderColor = RGB888(0, 0, 255);
 
   windowProps().focusable = true;
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_sliderStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 }
 
 
@@ -4743,8 +4815,10 @@ void uiSlider::paintSlider()
     }
   }
   // grip
-  canvas()->setBrushColor(m_sliderStyle.gripColor);
+  canvas()->setBrushColor(isMouseOver() ? m_sliderStyle.mouseOverGripColor : m_sliderStyle.gripColor);
   canvas()->fillRectangle(gripRect);
+  canvas()->setPenColor(m_sliderStyle.gripColor);
+  canvas()->drawRectangle(gripRect);
 }
 
 
@@ -4808,6 +4882,14 @@ void uiSlider::processEvent(uiEvent * event)
 
     case UIEVT_KEYDOWN:
       handleKeyDown(event->params.key);
+      break;
+
+    case UIEVT_MOUSEENTER:
+      repaint();  // to update background color
+      break;
+
+    case UIEVT_MOUSELEAVE:
+      repaint();  // to update background
       break;
 
     default:
@@ -4879,8 +4961,11 @@ uiProgressBar::uiProgressBar(uiWindow * parent, const Point & pos, const Size & 
   windowStyle().borderSize = 1;
   windowStyle().borderColor = RGB888(64, 64, 64);
 
-  if (app()->style() && styleClassID)
-    app()->style()->setStyle(this, styleClassID);
+  if (app()) {
+    m_progressBarStyle.adaptToDisplayColors(app()->displayColors());
+    if (app()->style() && styleClassID)
+      app()->style()->setStyle(this, styleClassID);
+  }
 
   m_percentage = 0;
 }

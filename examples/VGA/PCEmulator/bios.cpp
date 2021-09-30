@@ -70,7 +70,7 @@ void BIOS::init(Machine * machine)
 void BIOS::reset()
 {
   m_kbdScancodeComp = 0;
-  m_memory[BIOS_DATAAREA_ADDR + BIOS_NUMHD] = (m_machine->disk(2) ? 1 : 0) + (m_machine->disk(3) ? 1 : 0);
+  m_memory[BIOS_DATAAREA_ADDR + BIOS_NUMHD] = (bool)(m_machine->disk(2)) + (bool)(m_machine->disk(3));
 }
 
 
@@ -983,10 +983,10 @@ void BIOS::diskHandler_floppy()
           // not possible here
           break;
       }
-      i8086::setCH(m_machine->diskCylinders(drive) - 1);  // max usable track number
-      i8086::setCL(m_machine->diskSectors(drive));        // max usable sector number
-      i8086::setDH(m_machine->diskHeads(drive) - 1);      // max usable head number
-      i8086::setDL((m_machine->disk(0) ? 1 : 0) + (m_machine->disk(1) ? 1 : 0));  // number of diskette installed
+      i8086::setCH(m_machine->diskCylinders(drive) - 1);                      // max usable track number
+      i8086::setCL(m_machine->diskSectors(drive));                            // max usable sector number
+      i8086::setDH(m_machine->diskHeads(drive) - 1);                          // max usable head number
+      i8086::setDL((bool)(m_machine->disk(0)) + (bool)(m_machine->disk(1)));  // number of diskette installed
       // Pointer to Diskette Parameters table for the maximum media type supported on the specified drive
       i8086::setES(BIOS_SEG);
       i8086::setDI(m_origInt1EAddr - BIOS_SEG * 16);
@@ -1112,9 +1112,9 @@ void BIOS::diskHandler_HD()
   int drive   = (i8086::DL() & 1) + 2;  // 2 = HD0, 3 = HD1
   int service = i8086::AH();
 
-  //printf("INT 13h, HDD (%d), service %02X\n", drive, service);
+  //printf("INT 13h, HDD (%d), service %02X [AH=%02X DL=%02X]\n", drive, service, i8086::AH(), i8086::DL());
 
-  if (m_machine->disk(drive) == nullptr) {
+  if (m_machine->disk(drive) == nullptr || i8086::DL() > 0x81) {
     // invalid drive
     diskHandler_HDExit(0x80, true);
     return;
@@ -1178,7 +1178,7 @@ void BIOS::diskHandler_HD()
         i8086::setCL(((maxUsableCylNum >> 2) & 0xc0) |                              // Bits 7-6 = Maximum usable cylinder number (high 2 bits)
                      (maxUsableSecNum & 0x3f));                                     // Bits 5-0 = Maximum usable sector number
         i8086::setDH(maxUsableHeadNum);                                             // Maximum usable head number
-        i8086::setDL((m_machine->disk(2) ? 1 : 0) + (m_machine->disk(3) ? 1 : 0));  // Number of drives (@TODO: correct? Docs not clear)
+        i8086::setDL((bool)(m_machine->disk(2)) + (bool)(m_machine->disk(3)));      // Number of drives (@TODO: correct? Docs not clear)
         // Address of Fixed Disk Parameters table
         // *** note: some texts tell ES:DI should return a pointer to parameters table. IBM docs don't. Actually
         //           returning ES:DI may crash old MSDOS versions!
@@ -1247,4 +1247,54 @@ void BIOS::diskHandler_HDExit(uint8_t err, bool setErrStat)
   i8086::setFlagCF(err ? 1 : 0);
   if (setErrStat)
     m_memory[BIOS_DATAAREA_ADDR + BIOS_HDLASTSTATUS] = err;
+}
+
+
+void BIOS::videoHandlerEntry()
+{
+  auto ga = m_machine->graphicsAdapter();
+  auto fb = m_machine->frameBuffer();
+
+  switch (i8086::AH()) {
+
+    // Write Pixel
+    case 0x0c:
+      switch (ga->emulation()) {
+
+        case GraphicsAdapter::Emulation::PC_Graphics_320x200_4Colors:
+        {
+          constexpr uint32_t rowlen = 320 / 4;
+          const uint8_t  value      = i8086::AL() & 0b11;
+          const bool     xored      = i8086::AL() & 0x80;
+          const uint32_t col        = i8086::CX();
+          const uint32_t row        = i8086::DX();
+          const uint32_t addr       = (row >> 1) * rowlen + (col >> 2) + (row & 1) * 0x2000;
+          const uint32_t shift      = 6 - (col & 3) * 2;
+          if (xored)
+            fb[addr] ^= value << shift;
+          else
+            fb[addr]  = (fb[addr] & ~(0b11 << shift)) | (value << shift);
+          break;
+        }
+
+        case GraphicsAdapter::Emulation::PC_Graphics_640x200_2Colors:
+          printf("INT 10h, write pixel, unsupported 640x200x2 resolution\n");
+          break;
+
+        case GraphicsAdapter::Emulation::PC_Graphics_HGC_720x348:
+          printf("INT 10h, write pixel, unsupported 720x348x2 resolution\n");
+          break;
+
+        default:
+          printf("INT 10h, write pixel, unsupported resolution\n");
+          break;
+
+      }
+      break;
+
+    default:
+      printf("unsupported INT 10h, AX = %04X\n", i8086::AX());
+      break;
+
+  }
 }
