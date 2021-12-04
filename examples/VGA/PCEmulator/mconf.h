@@ -42,6 +42,9 @@ Allowed tags:
 "chs1" : Hard disk 1 geometry (Cylinders,Heads,Sectors)
 "boot" : Boot drive. Values: fd0, fd1, hd0, hd1. Default is fd0
 
+A filename may contain a path, relative to SD_MOUNT_PATH mounting path. For example, if "disks/disk1.img" is specified and SD_MOUNT_PATH="/SD", then it loads "/SD/disks/disk1.img".
+
+
 Examples:
 
 Download first floppy image from "http://www.fabglib.org/downloads/A_freedos.img" and first hard disk image from "http://www.fabglib.org/downloads/C_dosdev.img". Boot from floppy:
@@ -52,6 +55,9 @@ First hard disk is "HDD_10M.IMG", having 306 cylinders, 4 heads and 17 sectors. 
 
 First floppy drive is "TESTBOOT.IMG". Boot from first floppy:
     desc "Floppy Only"  fd0 TESTBOOT.IMG boot fd0
+
+Boot from disk1.img located inside "msdos3" folder:
+    desc "Machine1" fd0 msdos3/disk1.img
 
 */
 
@@ -67,21 +73,27 @@ First floppy drive is "TESTBOOT.IMG". Boot from first floppy:
 #include "bios.h"
 
 
+#define SD_MOUNT_PATH         "/SD"
 
 #define MACHINE_CONF_FILENAME "mconfs.txt"
 
-#define NL "\r\n"
+#define NL                    "\r\n"
 
 
 static const char DefaultConfFile[] =
-  "desc \"FreeDOS (A:)\"                               fd0 http://www.fabglib.org/downloads/A_freedos.img" NL
-  "desc \"FreeDOS (A:) + DOS Programming Tools (C:)\"  fd0 http://www.fabglib.org/downloads/A_freedos.img hd0 http://www.fabglib.org/downloads/C_dosdev.img chs0 1024,1,63" NL
-  "desc \"FreeDOS (A:) + Windows 3.0 Hercules (C:)\"   fd0 http://www.fabglib.org/downloads/A_freedos.img hd0 http://www.fabglib.org/downloads/C_winherc.img chs0 1024,1,63" NL
-  "desc \"FreeDOS (A:) + DOS Programs and Games (C:)\" fd0 http://www.fabglib.org/downloads/A_freedos.img hd0 http://www.fabglib.org/downloads/C_dosprog.img chs0 1024,1,63" NL
-  "desc \"MS-DOS 3.31 (A:)\"                           fd0 http://www.fabglib.org/downloads/A_MSDOS331.img" NL
-  "desc \"Linux ELKS 0.4.0\"                           fd0 http://www.fabglib.org/downloads/A_ELK040.img" NL
-  "desc \"CP/M 86 + Turbo Pascal 3\"                   fd0 http://www.fabglib.org/downloads/A_CPM86.img" NL;
-
+  "desc \"FreeDOS (floppy 1.44MB)\"                    fd0 http://www.fabglib.org/downloads/floppy_FREEDOS.img"           NL
+  "desc \"MS-DOS 3.31 (floppy 1.44MB)\"                fd0 http://www.fabglib.org/downloads/floppy_MSDOS331.img"          NL
+  "desc \"CP/M 86 + Turbo Pascal 3 (floppy 1.44MB)\"   fd0 http://www.fabglib.org/downloads/floppy_CPM86.img"             NL
+  "desc \"Linux ELKS 0.4.0 (floppy 1.44MB)\"           fd0 http://www.fabglib.org/downloads/floppy_ELK040.img"            NL
+  "desc \"FreeDOS (HDD 8MB)\"                          hd0 http://www.fabglib.org/downloads/hd8_FREEDOS.img     boot hd0" NL
+  "desc \"DOS Programs and Games (HDD 20MB)\"          hd0 http://www.fabglib.org/downloads/hd20_DOSPROG.img    boot hd0" NL
+  "desc \"DOS Programming Tools (HDD 20MB)\"           hd0 http://www.fabglib.org/downloads/hd20_DOSDEV.img     boot hd0" NL
+  "desc \"Windows 3.0 (HDD 20MB)\"                     hd0 http://www.fabglib.org/downloads/hd20_WINHERC.img    boot hd0" NL
+  "desc \"GEM 3.13 (HDD 8MB)\"                         hd0 http://www.fabglib.org/downloads/hd8_GEM31.img       boot hd0" NL
+  "desc \"GEOS 2.0 (HDD 20MB)\"                        hd0 http://www.fabglib.org/downloads/hd20_GEOS20.img      boot hd0" NL
+  "desc \"MS-DOS 5.00 (HDD 8MB)\"                      hd0 http://www.fabglib.org/downloads/hd8_MSDOS500.img    boot hd0" NL
+  "desc \"MS-DOS 6.22 (HDD 8MB)\"                      hd0 http://www.fabglib.org/downloads/hd8_MSDOS622.img    boot hd0" NL
+  "desc \"SvarDOS (HDD (hDD 10MB)\"                    hd0 http://www.fabglib.org/downloads/hd10_SVARDOS.img    boot hd0" NL;
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +104,7 @@ static const char DefaultConfFile[] =
 struct MachineConfItem {
   MachineConfItem * next;
   char            * desc;
-  char            * disk[DISKCOUNT];
+  char            * disk[DISKCOUNT];        // path relative to mounting path
   uint16_t          cylinders[DISKCOUNT];
   uint16_t          heads[DISKCOUNT];
   uint16_t          sectors[DISKCOUNT];
@@ -180,4 +192,4 @@ void delConfigDialog(InputBox * ibox, MachineConf * mconf, int idx);
 
 void drawInfo(Canvas * canvas);
  
-bool createEmptyDiskImage(InputBox * ibox, int diskType, char const * filename);
+bool createFATFloppyImage(InputBox * ibox, int diskType, char const * directory, char const * filename);

@@ -37,6 +37,8 @@
 #pragma message "This sketch requires Tools->Partition Scheme = Huge APP"
 
 
+#include <memory>
+
 #include "esp32-hal-psram.h"
 extern "C" {
 #include "esp_spiram.h"
@@ -54,6 +56,8 @@ extern "C" {
 
 
 
+using std::unique_ptr;
+
 using fabgl::StringList;
 using fabgl::imin;
 using fabgl::imax;
@@ -65,12 +69,12 @@ InputBox      ibox;
 Machine     * machine;
 
 
-// noinit!
+// noinit! Used to maintain datetime between reboots
 __NOINIT_ATTR static timeval savedTimeValue;
 
 
 static bool wifiConnected = false;
-static bool downloadOK = false;
+static bool downloadOK    = false;
 
 
 // try to connected using saved parameters
@@ -199,7 +203,7 @@ void updateDateTime()
         delay(500);
       }
       sntp_stop();
-      ibox.setAutoOK(3);
+      ibox.setAutoOK(2);
       ibox.message("", "Date and Time updated. Restarting...");
       esp_restart();
     });
@@ -263,7 +267,7 @@ bool downloadURL(char const * URL, FILE * file)
 // return filename if successfully downloaded or already exist
 char const * getDisk(char const * url)
 {
-  FileBrowser fb("/SD");
+  FileBrowser fb(SD_MOUNT_PATH);
 
   char const * filename = nullptr;
   if (url) {
@@ -284,11 +288,53 @@ char const * getDisk(char const * url)
       }
     } else {
       // this is just a file
-      if (fb.exists(url, false))
+      if (fb.filePathExists(url))
         filename = url;
     }
   }
   return filename;
+}
+
+
+// user pressed SYSREQ (ALT + PRINTSCREEN)
+void sysReqCallback()
+{
+  machine->graphicsAdapter()->enableVideo(false);
+  ibox.begin(VGA_640x480_60Hz, 500, 400, 4);
+
+  int s = ibox.menu("", "Select a command", "Restart (Boot Menu);Continue;Mount Disk");
+  switch (s) {
+
+    // Restart
+    case 0:
+      esp_restart();
+      break;
+
+    // Mount Disk
+    case 2:
+    {
+      int s = ibox.menu("", "Select Drive", "Floppy A (fd0);Floppy B (fd1)");
+      if (s > -1) {
+        constexpr int MAXNAMELEN = 256;
+        unique_ptr<char[]> dir(new char[MAXNAMELEN + 1] { '/', 'S', 'D', 0 } );
+        unique_ptr<char[]> filename(new char[MAXNAMELEN + 1] { 0 } );
+        if (machine->diskFilename(s))
+          strcpy(filename.get(), machine->diskFilename(s));
+        if (ibox.fileSelector("Select Disk Image", "Image Filename", dir.get(), MAXNAMELEN, filename.get(), MAXNAMELEN) == InputResult::Enter) {
+          machine->setDriveImage(s, filename.get());
+        }
+      }
+      break;
+    }
+
+    // Continue
+    default:
+      break;
+  }
+
+  ibox.end();
+  PS2Controller::keyboard()->enableVirtualKeys(false, false); // don't use virtual keys
+  machine->graphicsAdapter()->enableVideo(true);
 }
 
 
@@ -325,7 +371,7 @@ void setup()
   esp_spiram_init_cache();
   #endif
 
-  if (!FileBrowser::mountSDCard(false, "/SD", 8))   // @TODO: reduce to 4?
+  if (!FileBrowser::mountSDCard(false, SD_MOUNT_PATH, 8))   // @TODO: reduce to 4?
     ibox.message("Error!", "This app requires a SD-CARD!", nullptr, nullptr);
 
   // uncomment to format SD!
@@ -338,9 +384,9 @@ void setup()
   // machine configurations
   MachineConf mconf;
 
-  // show a list of machine configurations allowing edit
+  // show a list of machine configurations
 
-  ibox.setAutoOK(8);
+  ibox.setAutoOK(6);
   int idx = preferences.getInt("dconf", 0);
 
   for (bool showDialog = true; showDialog; ) {
@@ -352,25 +398,33 @@ void setup()
       dconfs.append(conf->desc);
     dconfs.select(idx, true);
 
-    ibox.setExtButton(0, "Edit");
-    ibox.setExtButton(1, "Remove");
-    ibox.setExtButton(2, "New");
+    ibox.setupButton(0, "Browse Files");
+    ibox.setupButton(1, "Options", "Edit;New;Remove", 52);
     auto r = ibox.select("Machine Configurations", "Please select a machine configuration", &dconfs, nullptr, "Run");
 
     idx = dconfs.getFirstSelected();
 
     switch (r) {
       case InputResult::ButtonExt0:
-        // Edit
-        editConfigDialog(&ibox, &mconf, idx);
+        // Browse Files
+        ibox.folderBrowser("Browse Files", SD_MOUNT_PATH);
         break;
       case InputResult::ButtonExt1:
-        // Remove
-        delConfigDialog(&ibox, &mconf, idx);
-        break;
-      case InputResult::ButtonExt2:
-        // New
-        newConfigDialog(&ibox, &mconf, idx);
+        // Options
+        switch (ibox.selectedSubItem()) {
+          // Edit
+          case 0:
+            editConfigDialog(&ibox, &mconf, idx);
+            break;
+          // New
+          case 1:
+            newConfigDialog(&ibox, &mconf, idx);
+            break;
+          // Remove
+          case 2:
+            delConfigDialog(&ibox, &mconf, idx);
+            break;
+        };
         break;
       case InputResult::Enter:
         // Run
@@ -403,7 +457,7 @@ void setup()
 
   if (wifiConnected) {
     // disk downloaded from the Internet, need to reboot to fully disable wifi
-    ibox.setAutoOK(3);
+    ibox.setAutoOK(2);
     ibox.message("", "Disks downloaded. Restarting...");
     esp_restart();
   }
@@ -411,6 +465,8 @@ void setup()
   ibox.end();
 
   machine = new Machine;
+
+  machine->setBaseDirectory(SD_MOUNT_PATH);
   for (int i = 0; i < DISKCOUNT; ++i)
     machine->setDriveImage(i, diskFilename[i], conf->cylinders[i], conf->heads[i], conf->sectors[i]);
 
@@ -423,6 +479,8 @@ void setup()
 
   heap_caps_dump_all();
   */
+
+  machine->setSysReqCallback(sysReqCallback);
 
   machine->run();
 }

@@ -252,7 +252,7 @@ struct ConfigDialog : public uiApp {
     mainFrame->frameProps().hasMaximizeButton = false;
     mainFrame->frameProps().hasMinimizeButton = false;
     mainFrame->frameProps().hasCloseButton    = false;
-    mainFrame->onKeyUp = [&](uiKeyEventInfo key) {
+    mainFrame->onKeyUp = [&](uiKeyEventInfo const & key) {
       if (key.VK == VirtualKey::VK_RETURN || key.VK == VirtualKey::VK_KP_ENTER) {
         saveAndQuit();
       } else if (key.VK == VirtualKey::VK_ESCAPE) {
@@ -355,13 +355,26 @@ struct ConfigDialog : public uiApp {
   }
 
 
-  // @TODO: support files stored in subfolders!!
   void browseFilename(uiTextEdit * edit) {
     unique_ptr<char[]> dir(new char[MAXVALUELENGTH + 1] { '/', 'S', 'D', 0 } );
     unique_ptr<char[]> filename(new char[MAXVALUELENGTH + 1]);
     strcpy(filename.get(), edit->text());
+    // is URL?
+    if (strncmp("://", filename.get() + 4, 3)) {
+      // no, does filename contain a path?
+      auto p = strrchr(filename.get(), '/');
+      if (p) {
+        // yes, move it into "dir"
+        strcat(dir.get(), "/");
+        strncat(dir.get(), filename.get(), p - filename.get());
+        memmove(filename.get(), p + 1, strlen(p + 1) + 1);
+      }
+    }
     if (fileDialog("Select drive image", dir.get(), MAXVALUELENGTH, filename.get(), MAXVALUELENGTH, "OK", "Cancel") == uiMessageBoxResult::ButtonOK) {
-      edit->setText(filename.get());
+      if (strlen(dir.get()) > 4)
+        edit->setTextFmt("%s/%s", dir.get() + 4, filename.get()); // bypass "/SD/"
+      else
+        edit->setText(filename.get());
       edit->repaint();
     }
   }
@@ -433,8 +446,7 @@ struct ConfigDialog : public uiApp {
         auto buf = (uint8_t*) SOC_EXTRAM_DATA_LOW; // use PSRAM as buffer
         constexpr int BUFSIZE = 4096;
         memset(buf, 0, BUFSIZE);
-        FileBrowser fb("/SD");
-        auto file = fb.openFile(filename.get(), "wb");
+        auto file = FileBrowser(dir.get()).openFile(filename.get(), "wb");
         const int totSize = hdSize * 1048576;
         for (int sz = totSize; sz > 0; ) {
           sz -= fwrite(buf, 1, imin(BUFSIZE, sz), file);
@@ -444,8 +456,8 @@ struct ConfigDialog : public uiApp {
         fclose(file);
       });
     } else {
-      // Floppy Disk
-      createEmptyDiskImage(&ib, s, filename.get());
+      // FAT Formatted Floppy Disk
+      createFATFloppyImage(&ib, s, dir.get(), filename.get());
     }
 
   }
@@ -461,7 +473,7 @@ struct ConfigDialog : public uiApp {
 
 void loadMachineConfiguration(MachineConf * mconf)
 {
-  FileBrowser fb("/SD");
+  FileBrowser fb(SD_MOUNT_PATH);
 
   // saves a default configuration file if necessary
   if (!fb.exists(MACHINE_CONF_FILENAME, false)) {
@@ -479,9 +491,7 @@ void loadMachineConfiguration(MachineConf * mconf)
 
 void saveMachineConfiguration(MachineConf * mconf)
 {
-  FileBrowser fb("/SD");
-
-  auto confFile = fb.openFile(MACHINE_CONF_FILENAME, "wb");
+  auto confFile = FileBrowser(SD_MOUNT_PATH).openFile(MACHINE_CONF_FILENAME, "wb");
   mconf->saveToFile(confFile);
   fclose(confFile);
 }
@@ -528,6 +538,7 @@ void drawInfo(Canvas * canvas)
 }
 
 
+// Create FAT formatted floppy image
 // diskType:
 //   0 = 320
 //   1 = 360
@@ -535,7 +546,8 @@ void drawInfo(Canvas * canvas)
 //   3 = 1200
 //   4 = 1440
 //   5 = 2880
-bool createEmptyDiskImage(InputBox * ibox, int diskType, char const * filename)
+// directory: absolute path (includes mounting point, ie "/SD/..."
+bool createFATFloppyImage(InputBox * ibox, int diskType, char const * directory, char const * filename)
 {
   // boot sector for: 320K, 360K, 720K, 1440K, 2880K
   static const uint8_t BOOTSECTOR_WIN[512] = {
@@ -630,9 +642,7 @@ bool createEmptyDiskImage(InputBox * ibox, int diskType, char const * filename)
     { 0xf0, 9, 24 },   // 2880K
   };
 
-  FileBrowser fb;
-  fb.setDirectory("/SD");
-  auto file = fb.openFile(filename, "wb");
+  auto file = FileBrowser(directory).openFile(filename, "wb");
 
   if (file) {
 

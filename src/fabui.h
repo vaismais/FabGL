@@ -72,11 +72,13 @@
                 *uiListBox
                 *uiColorListBox
                 *uiFileBrowser
+                *uiSimpleMenu
             uiMemoEdit
           *uiCheckBox
           *uiCustomComboBox
             *uiComboBox
             *uiColorComboBox
+            *uiSplitButton
           uiMenu
           uiGauge
           *uiSlider
@@ -128,6 +130,7 @@ enum uiEventID {
   UIEVT_KILLFOCUS,
   UIEVT_KEYDOWN,
   UIEVT_KEYUP,
+  UIEVT_KEYTYPE,
   UIEVT_TIMER,
   UIEVT_CLICK,
   UIEVT_DBLCLICK,
@@ -259,10 +262,13 @@ struct uiObjectType {
   uint32_t uiColorBox          : 1;
   uint32_t uiColorComboBox     : 1;
   uint32_t uiProgressBar       : 1;
+  uint32_t uiSplitButton       : 1;
+  uint32_t uiSimpleMenu        : 1;
 
   uiObjectType() : uiApp(0), uiEvtHandler(0), uiWindow(0), uiFrame(0), uiControl(0), uiScrollableControl(0), uiButton(0), uiTextEdit(0),
                    uiLabel(0), uiImage(0), uiPanel(0), uiPaintBox(0), uiCustomListBox(0), uiListBox(0), uiFileBrowser(0), uiComboBox(0),
-                   uiCheckBox(0), uiSlider(0), uiColorListBox(0), uiCustomComboBox(0), uiColorBox(0), uiColorComboBox(0), uiProgressBar(0)
+                   uiCheckBox(0), uiSlider(0), uiColorListBox(0), uiCustomComboBox(0), uiColorBox(0), uiColorComboBox(0), uiProgressBar(0),
+                   uiSplitButton(0), uiSimpleMenu(0)
     { }
 };
 
@@ -340,20 +346,20 @@ enum class uiOrigin {
 /** @brief Specifies current window state */
 struct uiWindowState {
   uint8_t visible   : 1;  /**< 0 = hidden,   1 = visible   */
-  uint8_t maximized : 1;  /**< 0 = normal,   1 = maximized */
-  uint8_t minimized : 1;  /**< 0 = normal,   1 = minimized */
   uint8_t active    : 1;  /**< 0 = inactive, 1 = active    */
 };
 
 
 /** @brief Contains some window options */
 struct uiWindowProps {
-  uint8_t activable : 1;  /**< The window is activable (default for windows)  */
-  uint8_t focusable : 1;  /**< The window is focusable (default for controls) */
+  uint8_t activable  : 1;  /**< The window is activable (default for windows)  */
+  uint8_t focusable  : 1;  /**< The window is focusable (default for controls) */
+  uint8_t activeLook : 1;  /**< Maintain active style even when not active */
 
   uiWindowProps() :
     activable(true),
-    focusable(false)
+    focusable(false),
+    activeLook(false)
   { }
 };
 
@@ -523,7 +529,7 @@ public:
   /**
    * @brief Determines the window state
    *
-   * To set window state (hidden, visible, maximized, minimized) use uiApp.showWindow(), uiApp.maximizeWindow(), uiApp.minimizeWindow().
+   * To set window state (hidden, visible) use uiApp.showWindow().
    *
    * @return Current window state
    */
@@ -556,13 +562,6 @@ public:
    * @return Parent frame
    */
   uiWindow * parentFrame();
-
-  /**
-   * @brief Determines mouse position when left button was down
-   *
-   * @return Mouse position
-   */
-  Point mouseDownPos() { return m_mouseDownPos; }
 
   /**
    * @brief Transforms rectangle origins from current window to another one
@@ -614,6 +613,13 @@ public:
   bool hasFocus();
 
   /**
+   * @brief Determines wheter this window is the active window
+   *
+   * @return True if this window is the active window
+   */
+  bool isActiveWindow();
+
+  /**
    * @brief Allows to switch on or off anchors
    *
    * @return An L-value used to switch on or off anchors
@@ -643,14 +649,14 @@ public:
    *
    * @param value Style class identifier
    */
-  void setStyleClassID(uint32_t value) { m_styleClassID = value; }
+  void setStyleClassID(uint16_t value)   { m_styleClassID = value; }
 
   /**
    * @brief Determines current style class for this UI element
    *
    * @return Style class ID
    */
-  uint32_t styleClassID()                { return m_styleClassID; }
+  uint16_t styleClassID()                { return m_styleClassID; }
 
   /**
    * @brief Enables a child window to send keyboard events to its parent
@@ -662,24 +668,6 @@ public:
   void setParentProcessKbdEvents(bool value) { m_parentProcessKbdEvents = value; }
 
 
-  // Delegates
-
-  /**
-   * @brief Mouse click event delegate
-   *
-   * This delegate is called when the mouse button is pressed and released on the same position.
-   */
-  Delegate<> onClick;
-
-  /**
-   * @brief Mouse double click event delegate
-   *
-   * This delegate is called when the mouse button is double pressed and released on the same position.
-   * To change double click time use uiAppProps.doubleClickTime of uiApp.appProps().
-   */
-  Delegate<> onDblClick;
-
-
 protected:
 
   void addChild(uiWindow * child);
@@ -689,9 +677,6 @@ protected:
   void moveChildOnTop(uiWindow * child);
   void moveAfter(uiWindow * child, uiWindow * underlyingChild);
   bool isChild(uiWindow * window);
-
-  Size sizeAtMouseDown()              { return m_sizeAtMouseDown; }
-  Point posAtMouseDown()              { return m_posAtMouseDown; }
 
   virtual Size minWindowSize()        { return Size(0, 0); }
 
@@ -716,19 +701,11 @@ private:
   Point         m_pos;
   Size          m_size;
 
-  // saved screen rect before Maximize or Minimize
-  Rect          m_savedScreenRect;
-
   uiWindowState m_state;
 
   uiWindowProps m_windowProps;
 
   uiWindowStyle m_windowStyle;
-
-  Point         m_mouseDownPos;    // mouse position when mouse down event has been received
-
-  Point         m_posAtMouseDown;  // used to resize
-  Size          m_sizeAtMouseDown; // used to resize
 
   bool          m_isMouseOver;     // true after mouse entered, false after mouse left
 
@@ -736,13 +713,13 @@ private:
 
   int16_t       m_focusIndex;      // -1 = doesn't partecipate to focus trip
 
+  uint16_t      m_styleClassID;
+
   // double linked list, order is: bottom (first items) -> up (last items)
   uiWindow *    m_next;
   uiWindow *    m_prev;
   uiWindow *    m_firstChild;
   uiWindow *    m_lastChild;
-
-  uint32_t      m_styleClassID;
 
   // if true parent processes keyboard events
   bool          m_parentProcessKbdEvents;
@@ -808,6 +785,13 @@ struct uiFrameProps {
     hasMinimizeButton(true),
     fillBackground(true)
   { }
+};
+
+
+/** @brief Specifies current frame state */
+struct uiFrameState {
+  uint8_t maximized : 1;  /**< 0 = normal,   1 = maximized */
+  uint8_t minimized : 1;  /**< 0 = normal,   1 = minimized */
 };
 
 
@@ -899,6 +883,16 @@ public:
 
   int getNextFreeFocusIndex() { return m_nextFreeFocusIndex++; }
 
+  /**
+   * @brief Determines the frame state
+   *
+   * To set frame state (maximized, minimized) use uiApp.maximizeFrame() or uiApp.minimizeFrame().
+   *
+   * @return Current window state
+   */
+  uiFrameState frameState() { return m_frameState; }
+
+
 
   // Delegates
 
@@ -934,12 +928,12 @@ public:
   /**
    * @brief Key-down event delegate
    */
-  Delegate<uiKeyEventInfo> onKeyDown;
+  Delegate<uiKeyEventInfo const &> onKeyDown;
 
   /**
    * @brief Key-up event delegate
    */
-  Delegate<uiKeyEventInfo> onKeyUp;
+  Delegate<uiKeyEventInfo const &> onKeyUp;
 
   /**
    * @brief Paint event delegate
@@ -983,6 +977,13 @@ private:
 
   int                m_nextFreeFocusIndex;
 
+  Point              m_mouseDownPos;        // mouse position when mouse down event has been received
+
+  Rect               m_savedScreenRect;     // saved screen rect before Maximize or Minimize
+
+  Size               m_sizeAtMouseDown;     // used to resize
+
+  uiFrameState       m_frameState;
 };
 
 
@@ -1203,6 +1204,8 @@ private:
 
   // a timer is active while mouse is down and the mouse is over a button
   uiTimerHandle   m_scrollTimer;
+
+  Point           m_mouseDownPos;    // mouse position when mouse down event has been received
 };
 
 
@@ -1325,6 +1328,27 @@ public:
    * This delegate is called whenever a switch button change its state
    */
   Delegate<> onChange;
+
+  /**
+   * @brief Mouse click event delegate
+   *
+   * This delegate is called when the mouse button is pressed and released on the same position.
+   */
+  Delegate<> onClick;
+
+  /**
+   * @brief Mouse down event delegate
+   *
+   * This delegate is called when the mouse button is pressed
+   */
+  Delegate<uiMouseEventInfo const&> onMouseDown;
+
+  /**
+   * @brief Mouse up event delegate
+   *
+   * This delegate is called when the mouse button is released
+   */
+  Delegate<uiMouseEventInfo const&> onMouseUp;
 
 
 private:
@@ -1461,6 +1485,12 @@ public:
    */
   Delegate<> onChange;
 
+  /**
+   * @brief Key-type event delegate
+   */
+  Delegate<uiKeyEventInfo const &> onKeyType;
+  
+
 
 protected:
 
@@ -1588,6 +1618,13 @@ public:
    * Call this method whenever text or font changes.
    */
   void update();
+
+  /**
+   * @brief Mouse click event delegate
+   *
+   * This delegate is called when the mouse button is pressed and released on the same position.
+   */
+  Delegate<> onClick;
 
 
 private:
@@ -1786,7 +1823,7 @@ public:
    *
    * Applications use this delegate to perform custom drawings.
    */
-  Delegate<Rect> onPaint;
+  Delegate<Rect const &> onPaint;
 
 
 private:
@@ -1965,14 +2002,36 @@ public:
   Delegate<> onKillFocus;
 
   /**
+   * @brief Key-type event delegate
+   */
+  Delegate<uiKeyEventInfo const &> onKeyType;
+
+  /**
    * @brief Key-up event delegate
    */
-  Delegate<uiKeyEventInfo> onKeyUp;
+  Delegate<uiKeyEventInfo const &> onKeyUp;
+
+  /**
+   * @brief Mouse click event delegate
+   *
+   * This delegate is called when the mouse button is pressed and released on the same position.
+   */
+  Delegate<> onClick;
+
+  /**
+   * @brief Mouse double click event delegate
+   *
+   * This delegate is called when the mouse button is double pressed and released on the same position.
+   * To change double click time use uiAppProps.doubleClickTime of uiApp.appProps().
+   */
+  Delegate<> onDblClick;
+
 
 
 protected:
 
   void setScrollBar(uiOrientation orientation, int position, int visible, int range, bool repaintScrollbar);
+  int getItemAtMousePos(int mouseX, int mouseY);
 
   // must be implemented by inherited class
   virtual int items_getCount()                              = 0;
@@ -1984,7 +2043,6 @@ protected:
 private:
 
   void paintListBox();
-  int getItemAtMousePos(int mouseX, int mouseY);
   void mouseDownSelect(int mouseX, int mouseY);
   void mouseMoveSelect(int mouseX, int mouseY);
   void handleKeyDown(uiKeyEventInfo key);
@@ -2287,19 +2345,27 @@ protected:
 
   Size getEditControlSize();
 
+  virtual void openListBox();
+  virtual void closeListBox();
+  void switchListBox();
+
+  virtual void paintButton();
+  Rect getButtonRect();
+
+  uiWindow * getListBoxParent() { return m_listBoxParent; }
+
+  bool isListBoxOpen()          { return m_listBoxParent->state().visible; }
+
 private:
 
-  void paintComboBox();
-  Rect getButtonRect();
-  void openListBox();
-  void closeListBox();
-  void switchListBox();
   int buttonWidth();
 
 
-  int               m_listHeight;
+  int16_t           m_listHeight;
+  int16_t           m_loseFocusBy;
   uiComboBoxStyle   m_comboBoxStyle;
   uiComboBoxProps   m_comboBoxProps;
+  uiWindow *        m_listBoxParent;
 };
 
 
@@ -2539,6 +2605,13 @@ public:
    */
   Delegate<> onChange;
 
+  /**
+   * @brief Mouse click event delegate
+   *
+   * This delegate is called when the mouse button is pressed and released on the same position.
+   */
+  Delegate<> onClick;
+
 
 private:
 
@@ -2764,6 +2837,129 @@ private:
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+// uiSimpleMenu
+
+
+/** @brief Shows a list of selectable string items. Selection is done clicking or pressing ENTER or SPACE key. */
+class uiSimpleMenu : public uiCustomListBox {
+
+public:
+
+  /**
+   * @brief Creates an instance of the object
+   *
+   * @param parent The parent window. A simplemenu must always have a parent window
+   * @param pos Top-left coordinates of the simplemenu relative to the parent
+   * @param size The simplemenu size
+   * @param visible If true the simplemenu is immediately visible
+   * @param styleClassID Optional style class identifier
+   */
+  uiSimpleMenu(uiWindow * parent, const Point & pos, const Size & size, bool visible = true, uint32_t styleClassID = 0);
+
+  /**
+   * @brief A list of strings representing the simplemenu content
+   *
+   * Other than actual strings, StringList indicates which item is selected.
+   * Repainting is required when the string list changes.
+   *
+   * @return L-value representing simplemenu items
+   */
+  StringList & items()                              { return m_items; }
+
+  virtual void processEvent(uiEvent * event);
+
+
+  // Delegates
+
+  /**
+   * @brief Item select event
+   *
+   * This delegate is called whenever user click on an item or press ENTER or SPACE on the selected item.
+   */
+  Delegate<int> onSelect;
+
+protected:
+
+  virtual int items_getCount()                      { return m_items.count(); }
+  virtual void items_deselectAll()                  { m_items.deselectAll(); }
+  virtual void items_select(int index, bool select) { m_items.select(index, select); }
+  virtual bool items_selected(int index)            { return m_items.selected(index); }
+  virtual void items_draw(int index, const Rect & itemRect);
+
+
+private:
+
+  StringList     m_items;
+};
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// uiSplitButton
+
+
+/** @brief This is a combination of a button and a simple menu */
+class uiSplitButton : public uiCustomComboBox
+{
+
+public:
+
+  /**
+   * @brief Creates an instance of the object
+   *
+   * @param parent The parent window. A splitbutton must always have a parent window
+   * @param text The text of the splitbutton
+   * @param pos Top-left coordinates of the splitbutton relative to the parent
+   * @param size The splitbutton size
+   * @param listHeight Height in pixels of the open menu
+   * @param itemsText Separated list of menu items (ie "options 1;option 2;option 3")
+   * @param separator Character used to separate itemsText. Default is ";"
+   * @param visible If true the splitbutton is immediately visible
+   * @param styleClassID Optional style class identifier
+   */
+  uiSplitButton(uiWindow * parent, char const * text, const Point & pos, const Size & size, int listHeight, char const * itemsText, char separator = ';', bool visible = true, uint32_t styleClassID = 0);
+
+  ~uiSplitButton();
+
+  /**
+   * @brief A list of strings representing the menu content
+   *
+   * @return L-value representing menu items
+   */
+  StringList & items()         { return m_menu->items(); }
+
+  void processEvent(uiEvent * event);
+
+
+  // Delegates
+
+  /**
+   * @brief Item select event
+   *
+   * This delegate is called whenever user click on an item or press ENTER or SPACE on the selected item.
+   */
+  Delegate<int> onSelect;
+
+
+protected:
+
+  uiCustomListBox * listbox()  { return m_menu; }
+  uiControl * editcontrol()    { return m_button; }
+  void updateEditControl();
+  virtual void openListBox();
+  virtual void paintButton();
+
+private:
+  uiButton *     m_button;
+  uiSimpleMenu * m_menu;
+  int            m_selectedItem;
+
+};
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // uiStyle
 
 struct uiStyle {
@@ -2780,7 +2976,8 @@ struct uiStyle {
 struct uiAppProps {
   uint16_t caretBlinkingTime = 500;   /**< Caret blinking time (MS) */
   uint16_t doubleClickTime   = 250;   /**< Maximum delay required for two consecutive clicks to become double click (MS) */
-  bool     realtimeReshaping = false; /**< If true moving/resizing a window always repaints it, otherwise the moved/resized window is represented by an inverted rectangle */
+  bool     realtimeReshaping = false; /**< If true resizing a window always repaints it, otherwise the resized window is represented by an inverted rectangle */
+  bool     realtimeMoving    = false; /**< If true moving a window always repaints it, otherwise the moved window is represented by an inverted rectangle */
 };
 
 
@@ -3096,20 +3293,20 @@ public:
   int endModalWindow(ModalWindowState * state);
 
   /**
-   * @brief Maximizes or restores a window
+   * @brief Maximizes or restores a frame
    *
-   * @param window Window to be maximized or restored
-   * @param value True maximizes the window, False restores it from maximized state
+   * @param frame Frame to be maximized or restored
+   * @param value True maximizes the frame, False restores it from maximized state
    */
-  void maximizeWindow(uiWindow * window, bool value);
+  void maximizeFrame(uiFrame * frame, bool value);
 
   /**
-   * @brief Minimizes or restores a window
+   * @brief Minimizes or restores a frame
    *
-   * @param window Window to be minimized or restored
-   * @param value True minimizes the window, False restores it from minimized state
+   * @param frame Frame to be minimized or restored
+   * @param value True minimizes the frame, False restores it from minimized state
    */
-  void minimizeWindow(uiWindow * window, bool value);
+  void minimizeFrame(uiFrame * frame, bool value);
 
   void combineMouseMoveEvents(bool value) { m_combineMouseMoveEvents = value; }
 
@@ -3307,6 +3504,8 @@ private:
 
   uiWindow *      m_focusedWindow;       // window that captures keyboard events (other than active window)
 
+  uiWindow *      m_lastFocusedWindow;   // previous focused window
+
   uiWindow *      m_capturedMouseWindow; // window that has captured mouse
 
   uiWindow *      m_freeMouseWindow;     // window where mouse is over
@@ -3314,6 +3513,8 @@ private:
   uiWindow *      m_modalWindow;         // current modal window
 
   bool            m_combineMouseMoveEvents;
+
+  uiEvtHandler *  m_keyDownHandler;      // used to produce UIEVT_KEYTYPE
 
   uiWindow *      m_caretWindow;         // nullptr = caret is not visible
   Rect            m_caretRect;           // caret rect relative to m_caretWindow
@@ -3338,6 +3539,53 @@ private:
 
 
 } // end of namespace
+
+
+// get out of namespace frequently used names
+using fabgl::uiObject;
+using fabgl::uiButtonKind;
+using fabgl::uiTimerHandle;
+using fabgl::uiTextEdit;
+using fabgl::uiApp;
+using fabgl::uiFrame;
+using fabgl::uiButton;
+using fabgl::uiLabel;
+using fabgl::uiImage;
+using fabgl::uiPanel;
+using fabgl::uiMessageBoxIcon;
+using fabgl::uiPaintBox;
+using fabgl::uiOrientation;
+using fabgl::uiListBox;
+using fabgl::uiComboBox;
+using fabgl::uiCheckBox;
+using fabgl::uiCheckBoxKind;
+using fabgl::uiSlider;
+using fabgl::uiStyle;
+using fabgl::uiWindowStyle;
+using fabgl::uiFrameStyle;
+using fabgl::uiScrollableControlStyle;
+using fabgl::uiButtonStyle;
+using fabgl::uiTextEditStyle;
+using fabgl::uiLabelStyle;
+using fabgl::uiHAlign;
+using fabgl::uiImageStyle;
+using fabgl::uiPanelStyle;
+using fabgl::uiPaintBoxStyle;
+using fabgl::uiListBoxStyle;
+using fabgl::uiComboBoxStyle;
+using fabgl::uiCheckBoxStyle;
+using fabgl::uiSliderStyle;
+using fabgl::uiColorListBox;
+using fabgl::uiColorBox;
+using fabgl::uiColorComboBox;
+using fabgl::uiProgressBar;
+using fabgl::uiMessageBoxResult;
+using fabgl::uiKeyEventInfo;
+using fabgl::uiCustomListBox;
+using fabgl::uiFileBrowser;
+using fabgl::uiSplitButton;
+using fabgl::uiSimpleMenu;
+
 
 
 

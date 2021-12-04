@@ -339,7 +339,7 @@ class Menu : public uiApp {
     // handles following keys:
     //  F1         ->  show help
     //  ESC or F12 ->  run the emulator
-    rootWindow()->onKeyUp = [&](uiKeyEventInfo key) {
+    rootWindow()->onKeyUp = [&](uiKeyEventInfo const & key) {
       switch (key.VK) {
         // F1
         case VirtualKey::VK_F1:
@@ -359,7 +359,7 @@ class Menu : public uiApp {
     // handles following keys in filebrowser:
     //   RETURN -> load selected program and return to vic
     //   DELETE -> remove selected dir or file
-    fileBrowser->onKeyUp = [&](uiKeyEventInfo key) {
+    fileBrowser->onKeyUp = [&](uiKeyEventInfo const & key) {
       switch (key.VK) {
         // RETURN
         case VirtualKey::VK_RETURN:
@@ -699,10 +699,10 @@ class Menu : public uiApp {
         return false;
     }
     WiFi.begin(SSID, psw);
-    for (int i = 0; i < 2 && WiFi.status() != WL_CONNECTED; ++i) {
-      for (int j = 0; j < 16 && WiFi.status() != WL_CONNECTED; ++j)
-        delay(1000);
-      WiFi.reconnect();
+    for (int i = 0; i < 32 && WiFi.status() != WL_CONNECTED; ++i) {
+      delay(500);
+      if (i == 16)
+        WiFi.reconnect();
     }
     bool connected = (WiFi.status() == WL_CONNECTED);
     if (!connected) {

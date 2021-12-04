@@ -93,7 +93,10 @@ void i8042::init()
   Mouse::quickCheckHardware();
 
   // keyboard configured on port 0, and optionally mouse on port 1
-  m_PS2Controller.begin(PS2Preset::KeyboardPort0_MousePort1, KbdMode::NoVirtualKeys);
+  if (!PS2Controller::initialized())
+    m_PS2Controller.begin(PS2Preset::KeyboardPort0_MousePort1, KbdMode::NoVirtualKeys);
+  else
+    m_PS2Controller.keyboard()->enableVirtualKeys(false, false);
   m_keyboard = m_PS2Controller.keyboard();
   m_mouse    = m_PS2Controller.mouse();
 
@@ -114,6 +117,8 @@ void i8042::reset()
 
   m_mouseIntTrigs = 0;
   m_keybIntTrigs  = 0;
+
+  m_sysReqTriggered = false;
 }
 
 
@@ -168,7 +173,7 @@ void i8042::write(int address, uint8_t value)
 void i8042::tick()
 {
   // something to receive from keyboard?
-  if ((m_STATUS & STATUS_OBF) == 0 && m_keyboard->scancodeAvailable()) {
+  if ((m_STATUS & STATUS_OBF) == 0 && m_keyboard->scancodeAvailable() && (m_commandByte & CMDBYTE_DISABLE_KEYBOARD) == 0) {
     if (m_commandByte & CMDBYTE_STD_SCAN_CONVERSION) {
       // transform "set 2" scancodes to "set 1"
       int scode2 = m_keyboard->getNextScancode();
@@ -191,7 +196,7 @@ void i8042::tick()
   }
 
   // something to receive from mouse?
-  if ((m_STATUS & STATUS_OBF) == 0 && (m_mousePacketIdx > -1 || m_mouse->packetAvailable())) {
+  if ((m_STATUS & STATUS_OBF) == 0 && (m_mousePacketIdx > -1 || m_mouse->packetAvailable()) && (m_commandByte & CMDBYTE_DISABLE_MOUSE) == 0) {
     if (m_mousePacketIdx == -1)
       m_mouse->getNextPacket(&m_mousePacket);
     m_DBBOUT = m_mousePacket.data[++m_mousePacketIdx];
@@ -343,11 +348,17 @@ bool i8042::trigMouseInterrupt()
 }
 
 
-// check if SysReq (ALT + PRINT SCREEN) has been pressed
+// check if SysReq (ALT + PRINT SCREEN) has been released
 void i8042::checkSysReq(int scode2)
 {
-  if (scode2 == 0x84)
-    m_sysReq(m_context);
+  if (m_DBBOUT == 0xf0) {
+    if (scode2 == 0x84) { // SysReq released?
+      m_sysReqTriggered = true;
+    } else if (m_sysReqTriggered && scode2 == 0x11) { // ALT released?
+      m_sysReqTriggered = false;
+      m_sysReq(m_context);
+    }
+  }
 }
 
 
