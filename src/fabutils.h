@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2022 Fabrizio Di Vittorio.
   All rights reserved.
 
 
@@ -58,7 +58,8 @@ namespace fabgl {
 
 
 
-#define GPIO_UNUSED GPIO_NUM_MAX
+#define GPIO_UNUSED (GPIO_NUM_MAX)
+#define GPIO_AUTO   ((gpio_num_t)(GPIO_NUM_MAX + 1))
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -97,6 +98,9 @@ namespace fabgl {
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////
+
+
+#define TORAD(a) ((a) * M_PI / 180.)
 
 
 // Integer square root by Halleck's method, with Legalize's speedup
@@ -183,6 +187,18 @@ inline uint32_t changeEndiannesDWord(uint32_t value)
 {
   return ((value & 0xff) << 24) | ((value & 0xff00) << 8) | ((value & 0xff0000) >> 8) | ((value & 0xff000000) >> 24);
 }
+
+
+struct APLLParams {
+  uint8_t sdm0;
+  uint8_t sdm1;
+  uint8_t sdm2;
+  uint8_t o_div;
+};
+
+void APLLCalcParams(double freq, APLLParams * params, uint8_t * a, uint8_t * b, double * out_freq, double * error);
+
+int calcI2STimingParams(int sampleRate, int * outA, int * outB, int * outN, int * outM);
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -904,7 +920,7 @@ void removeRectangle(Stack<Rect> & rects, Rect const & mainRect, Rect const & re
 bool calcParity(uint8_t v);
 
 // why these? this is like heap_caps_malloc with MALLOC_CAP_32BIT. Unfortunately
-// heap_caps_malloc crashes, so we need this workaround.
+// heap_caps_realloc crashes, so we need this workaround.
 void * realloc32(void * ptr, size_t size);
 void free32(void * ptr);
 
@@ -1030,6 +1046,36 @@ struct CoreUsage {
   private:
     static int s_busiestCore;  // 0 = core 0, 1 = core 1 (default is FABGLIB_VIDEO_CPUINTENSIVE_TASKS_CORE)
 };
+
+
+
+///////////////////////////////////////////////////////////////////////////////////
+// VideoMode
+
+/** \ingroup Enumerations
+ * @brief
+ */
+enum class VideoMode {
+  None,     /**< Video mode has not been set. */
+  VGA,      /**< VGA display. */
+  CVBS,     /**< Composite display. */
+  I2C,      /**< I2C display. */
+  SPI,      /**< SPI display. */
+};
+
+
+/**
+ * @brief This class helps to know which is the current video output (VGA or Composite)
+ */
+struct CurrentVideoMode {
+
+  static VideoMode get()           { return s_videoMode; }
+  static void set(VideoMode value) { s_videoMode = value; }
+
+  private:
+    static VideoMode s_videoMode;
+};
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -1296,6 +1342,14 @@ enum VirtualKey {
   VK_SQUARE,          /**< Square     : ² */
   VK_CURRENCY,        /**< Currency   : ¤ */
   VK_MU,              /**< Mu         : µ */
+  
+  VK_aelig,           /** Lower case aelig  : æ */
+  VK_oslash,          /** Lower case oslash : ø */
+  VK_aring,           /** Lower case aring  : å */
+
+  VK_AELIG,           /** Upper case aelig  : Æ */
+  VK_OSLASH,          /** Upper case oslash : Ø */
+  VK_ARING,           /** Upper case aring  : Å */
 
   VK_ASCII,           /**< Specifies an ASCII code - used when virtual key is embedded in VirtualKeyItem structure and VirtualKeyItem.ASCII is valid */
   VK_LAST,            // marks the last virtual key

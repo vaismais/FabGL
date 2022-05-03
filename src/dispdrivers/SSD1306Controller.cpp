@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2022 Fabrizio Di Vittorio.
   All rights reserved.
 
 
@@ -135,6 +135,7 @@ SSD1306Controller::~SSD1306Controller()
 
 void SSD1306Controller::begin(I2C * i2c, int address, gpio_num_t resetGPIO)
 {
+  CurrentVideoMode::set(VideoMode::I2C);
   m_i2c        = i2c;
   m_i2cAddress = address;
   m_resetGPIO  = resetGPIO;

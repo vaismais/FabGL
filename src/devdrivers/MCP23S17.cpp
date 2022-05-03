@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2022 Fabrizio Di Vittorio.
   All rights reserved.
 
 
@@ -147,8 +147,14 @@ void MCP23S17::SPIEnd()
   if (m_SPIDevHandle) {
     spi_bus_remove_device(m_SPIDevHandle);
     m_SPIDevHandle = nullptr;
-    if (!FileBrowser::mountedSDCard())
+    if (FileBrowser::mountedSDCard()) {
+      if (getChipPackage() == ChipPackage::ESP32D0WDQ5) {
+        fabgl::configureGPIO(m_CS, GPIO_MODE_OUTPUT);
+        gpio_set_level(m_CS, 1);
+      }
+    } else {
       spi_bus_free(m_SPIHost);
+    }
   }
 }
 

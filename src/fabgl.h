@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2022 Fabrizio Di Vittorio.
   All rights reserved.
 
 
@@ -44,7 +44,7 @@
  * <a href="https://www.github.com/fdivitto/fabgl"> <img src="github.png" style="width:230px;height:80px;border:0;"> </a>
  * @endhtmlonly
  *
- * [www.FabGL.com](http://www.fabgl.com) - 2019-2021 by Fabrizio Di Vittorio (fdivitto2013@gmail.com)
+ * [www.FabGL.com](http://www.fabgl.com) - 2019-2022 by Fabrizio Di Vittorio (fdivitto2013@gmail.com)
  *
  * [Demos and Tutorials](https://www.youtube.com/user/fdivitto/videos)
  *
@@ -162,7 +162,7 @@
  *
  *
  * Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
- * Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+ * Copyright (c) 2019-2022 Fabrizio Di Vittorio.
  * All rights reserved.
  *
  *
@@ -277,6 +277,7 @@
  * @example VGA/SimpleTextTerminalOut/SimpleTextTerminalOut.ino Simple terminal text-only mode - output only
  * @example VGA/Songs/Songs.ino Music and sound demo, from Carles Oriol
  * @example VGA/SpaceInvaders/SpaceInvaders.ino Space invaders full game
+ * @example VGA/SoundChipSimulator/SoundChipSimulator.ino Sound chip simulator, from Carles Oriol
  * @example VGA/Sprites/Sprites.ino Simple sprites animation
  * @example VGA/VIC20/VIC20.ino Commodore VIC20 Emulator
  * @example VGA/InputBox/InputBox.ino InputBox UI wizard
@@ -320,6 +321,7 @@
 #include "dispdrivers/vga8controller.h"
 #include "dispdrivers/vga16controller.h"
 #include "dispdrivers/vgadirectcontroller.h"
+#include "dispdrivers/cvbs16controller.h"
 #include "fabui.h"
 #include "inputbox.h"
 #include "comdrivers/ps2controller.h"
@@ -347,6 +349,7 @@ using fabgl::MouseDelta;
 using fabgl::MouseStatus;
 using fabgl::CursorName;
 using fabgl::SoundGenerator;
+using fabgl::SoundGenMethod;
 using fabgl::SineWaveformGenerator;
 using fabgl::SquareWaveformGenerator;
 using fabgl::NoiseWaveformGenerator;

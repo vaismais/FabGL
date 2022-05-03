@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2022 Fabrizio Di Vittorio.
   All rights reserved.
 
 
@@ -52,22 +52,22 @@ static const char * FLOWCTRL_STR[]  = { "None", "XON/XOFF", "RTS/CTS", "Combi" }
 
 constexpr int RESOLUTION_DEFAULT           = 5;
 static const char * RESOLUTIONS_STR[]      = { "1280x768, B&W",           // 0
-                                               "1024x768, 4 Colors",      // 1
+                                               "1024x720, 4 Colors",      // 1
                                                "800x600, 8 Colors",       // 2
-                                               "720x576, 16 Colors",      // 3
+                                               "720x520, 16 Colors",      // 3
                                                "640x480 73Hz, 16 C.",     // 4
                                                "640x480 60Hz, 16 C.",     // 5
-                                               "640x350, 64 Colors",      // 6
+                                               "640x350, 16 Colors",      // 6
                                                "512x384, 64 Colors",      // 7
                                                "400x300, 64 Colors",      // 8
                                               };
 static const char * RESOLUTIONS_CMDSTR[]   = { "1280x768x2",              // 0
-                                               "1024x768x4",              // 1
+                                               "1024x720x4",              // 1
                                                "800x600x8",               // 2
-                                               "720x576x16",              // 3
+                                               "720x520x16",              // 3
                                                "640x480@73x16",           // 4
                                                "640x480@60x16",           // 5
-                                               "640x350x64",              // 6
+                                               "640x350x16",              // 6
                                                "512x384x64",              // 7
                                                "400x300x64",              // 8
                                             };
@@ -78,7 +78,7 @@ static const ResolutionController RESOLUTIONS_CONTROLLER[] = { ResolutionControl
                                                                ResolutionController::VGA16Controller,    // 3
                                                                ResolutionController::VGA16Controller,    // 4
                                                                ResolutionController::VGA16Controller,    // 5
-                                                               ResolutionController::VGAController,      // 6
+                                                               ResolutionController::VGA16Controller,    // 6
                                                                ResolutionController::VGAController,      // 7
                                                                ResolutionController::VGAController,      // 8
                                                              };
@@ -91,6 +91,16 @@ static const char * RESOLUTIONS_MODELINE[] = { SVGA_1280x768_50Hz,        // 0
                                                VGA_640x350_70HzAlt1,      // 6
                                                VGA_512x384_60Hz,          // 7
                                                VGA_400x300_60Hz,          // 8
+};
+static const int16_t RESOLUTIONS_HEIGHT[] = {   -1,        // 0
+                                               720,        // 1
+                                                -1,        // 2
+                                               520,        // 3
+                                                -1,        // 4
+                                                -1,        // 5
+                                                -1,        // 6
+                                                -1,        // 7
+                                                -1,        // 8
 };
 constexpr int RESOLUTIONS_COUNT            = sizeof(RESOLUTIONS_STR) / sizeof(char const *);
 
@@ -205,31 +215,31 @@ struct ConfDialogApp : public uiApp {
     int y = 19;
 
     // little help
-    new uiLabel(frame, "Press TAB key to move between fields", Point(100, y), Size(0, 0), true, STYLE_LABELHELP);
-    new uiLabel(frame, "Outside this dialog press CTRL-ALT-F12 to reset settings", Point(52, y + 12), Size(0, 0), true, STYLE_LABELHELP);
+    new uiStaticLabel(frame, "Press TAB key to move between fields", Point(100, y), true, STYLE_LABELHELP);
+    new uiStaticLabel(frame, "Outside this dialog press CTRL-ALT-F12 to reset settings", Point(52, y + 12), true, STYLE_LABELHELP);
 
 
     y += 34;
 
     // select terminal emulation combobox
-    new uiLabel(frame, "Terminal Type", Point(10,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Terminal Type", Point(10,  y), true, STYLE_STATICLABEL);
     termComboBox = new uiComboBox(frame, Point(10, y + 12), Size(85, 20), 80, true, STYLE_COMBOBOX);
     termComboBox->items().append(SupportedTerminals::names(), SupportedTerminals::count());
     termComboBox->selectItem((int)getTermType());
 
     // select keyboard layout
-    new uiLabel(frame, "Keyboard Layout", Point(110, y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Keyboard Layout", Point(110, y), true, STYLE_STATICLABEL);
     kbdComboBox = new uiComboBox(frame, Point(110, y + 12), Size(75, 20), 70, true, STYLE_COMBOBOX);
     kbdComboBox->items().append(SupportedLayouts::names(), SupportedLayouts::count());
     kbdComboBox->selectItem(getKbdLayoutIndex());
 
     // background color
-    new uiLabel(frame, "Background Color", Point(200,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Background Color", Point(200,  y), true, STYLE_STATICLABEL);
     bgColorComboBox = new uiColorComboBox(frame, Point(200, y + 12), Size(75, 20), 70, true, STYLE_COMBOBOX);
     bgColorComboBox->selectColor(getBGColor());
 
     // foreground color
-    new uiLabel(frame, "Foreground Color", Point(290,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Foreground Color", Point(290,  y), true, STYLE_STATICLABEL);
     fgColorComboBox = new uiColorComboBox(frame, Point(290, y + 12), Size(75, 20), 70, true, STYLE_COMBOBOX);
     fgColorComboBox->selectColor(getFGColor());
 
@@ -237,31 +247,31 @@ struct ConfDialogApp : public uiApp {
     y += 48;
 
     // baud rate
-    new uiLabel(frame, "Baud Rate", Point(10,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Baud Rate", Point(10,  y), true, STYLE_STATICLABEL);
     baudRateComboBox = new uiComboBox(frame, Point(10, y + 12), Size(70, 20), 70, true, STYLE_COMBOBOX);
     baudRateComboBox->items().append(BAUDRATES_STR, BAUDRATES_COUNT);
     baudRateComboBox->selectItem(getBaudRateIndex());
 
     // data length
-    new uiLabel(frame, "Data Length", Point(95,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Data Length", Point(95,  y), true, STYLE_STATICLABEL);
     datalenComboBox = new uiComboBox(frame, Point(95, y + 12), Size(60, 20), 70, true, STYLE_COMBOBOX);
     datalenComboBox->items().append(DATALENS_STR, 4);
     datalenComboBox->selectItem(getDataLenIndex());
 
     // parity
-    new uiLabel(frame, "Parity", Point(170,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Parity", Point(170,  y), true, STYLE_STATICLABEL);
     parityComboBox = new uiComboBox(frame, Point(170, y + 12), Size(45, 20), 50, true, STYLE_COMBOBOX);
     parityComboBox->items().append(PARITY_STR, 3);
     parityComboBox->selectItem(getParityIndex());
 
     // stop bits
-    new uiLabel(frame, "Stop Bits", Point(230,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Stop Bits", Point(230,  y), true, STYLE_STATICLABEL);
     stopBitsComboBox = new uiComboBox(frame, Point(230, y + 12), Size(55, 20), 50, true, STYLE_COMBOBOX);
     stopBitsComboBox->items().append(STOPBITS_STR, 3);
     stopBitsComboBox->selectItem(getStopBitsIndex() - 1);
 
     // flow control
-    new uiLabel(frame, "Flow Control", Point(300,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Flow Control", Point(300,  y), true, STYLE_STATICLABEL);
     flowCtrlComboBox = new uiComboBox(frame, Point(300, y + 12), Size(65, 20), 35, true, STYLE_COMBOBOX);
     flowCtrlComboBox->items().append(FLOWCTRL_STR, 4);
     flowCtrlComboBox->selectItem((int)getFlowCtrl());
@@ -270,25 +280,25 @@ struct ConfDialogApp : public uiApp {
     y += 48;
 
     // resolution
-    new uiLabel(frame, "Resolution", Point(10, y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Resolution", Point(10, y), true, STYLE_STATICLABEL);
     resolutionComboBox = new uiComboBox(frame, Point(10, y + 12), Size(119, 20), 53, true, STYLE_COMBOBOX);
     resolutionComboBox->items().append(RESOLUTIONS_STR, RESOLUTIONS_COUNT);
     resolutionComboBox->selectItem(getResolutionIndex());
 
     // font
-    new uiLabel(frame, "Font", Point(144,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Font", Point(144,  y), true, STYLE_STATICLABEL);
     fontComboBox = new uiComboBox(frame, Point(144, y + 12), Size(110, 20), 70, true, STYLE_COMBOBOX);
     fontComboBox->items().append(FONTS_STR, FONTS_COUNT);
     fontComboBox->selectItem(getFontIndex());
 
     // columns
-    new uiLabel(frame, "Columns", Point(269,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Columns", Point(269,  y), true, STYLE_STATICLABEL);
     columnsComboBox = new uiComboBox(frame, Point(269, y + 12), Size(40, 20), 50, true, STYLE_COMBOBOX);
     columnsComboBox->items().append(COLUMNS_STR, COLUMNS_COUNT);
     columnsComboBox->selectItem(getColumnsIndex());
 
     // rows
-    new uiLabel(frame, "Rows", Point(325,  y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Rows", Point(325,  y), true, STYLE_STATICLABEL);
     rowsComboBox = new uiComboBox(frame, Point(324, y + 12), Size(40, 20), 50, true, STYLE_COMBOBOX);
     rowsComboBox->items().append(ROWS_STR, ROWS_COUNT);
     rowsComboBox->selectItem(getRowsIndex());
@@ -297,14 +307,14 @@ struct ConfDialogApp : public uiApp {
     y += 48;
 
     // show boot info
-    new uiLabel(frame, "Show Boot Info", Point(10, y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "Show Boot Info", Point(10, y), true, STYLE_STATICLABEL);
     infoCheckBox = new uiCheckBox(frame, Point(80, y - 2), Size(16, 16), uiCheckBoxKind::CheckBox, true, STYLE_CHECKBOX);
     infoCheckBox->setChecked(getBootInfo() == BOOTINFO_ENABLED);
 
     y += 24;
 
     // set control to usb-serial
-    new uiLabel(frame, "USBSerial", Point(10, y), Size(0, 0), true, STYLE_LABEL);
+    new uiStaticLabel(frame, "USBSerial", Point(10, y), true, STYLE_STATICLABEL);
     serctlCheckBox = new uiCheckBox(frame, Point(80, y - 2), Size(16, 16), uiCheckBoxKind::CheckBox, true, STYLE_CHECKBOX);
     serctlCheckBox->setChecked(getSerCtl() == SERCTL_ENABLED);
 
@@ -555,7 +565,7 @@ struct ConfDialogApp : public uiApp {
         break;
     }
     DisplayController->begin();
-    DisplayController->setResolution(RESOLUTIONS_MODELINE[res]);
+    DisplayController->setResolution(RESOLUTIONS_MODELINE[res], -1, RESOLUTIONS_HEIGHT[res]);
 
     // setup terminal
     auto cols = COLUMNS_INT[getColumnsIndex()];

@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2022 Fabrizio Di Vittorio.
   All rights reserved.
 
 
@@ -852,8 +852,6 @@ void Terminal::loadFont(FontInfo const * font)
   resetTabStops();
 
   freeGlyphsMap();
-  m_glyphsBuffer.columns      = m_columns;
-  m_glyphsBuffer.rows         = m_rows;
   while (true) {
     m_glyphsBuffer.map = (uint32_t*) heap_caps_malloc(sizeof(uint32_t) * m_columns * m_rows, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
     if (m_glyphsBuffer.map)
@@ -861,6 +859,8 @@ void Terminal::loadFont(FontInfo const * font)
     // no enough memory, reduce m_rows
     --m_rows;
   }
+  m_glyphsBuffer.columns      = m_columns;
+  m_glyphsBuffer.rows         = m_rows;
 
   m_alternateMap = nullptr;
   m_alternateScreenBuffer = false;

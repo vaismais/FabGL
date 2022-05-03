@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2022 Fabrizio Di Vittorio.
   All rights reserved.
 
 
@@ -150,6 +150,8 @@ void TFTController::setupGPIO()
 #ifdef ARDUINO
 void TFTController::begin(SPIClass * spi, gpio_num_t DC, gpio_num_t RESX, gpio_num_t CS)
 {
+  CurrentVideoMode::set(VideoMode::SPI);
+
   #ifdef ARDUINO
   m_spi   = spi;
   #endif

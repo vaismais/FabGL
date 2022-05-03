@@ -1,6 +1,6 @@
 /*
   Created by Fabrizio Di Vittorio (fdivitto2013@gmail.com) - <http://www.fabgl.com>
-  Copyright (c) 2019-2021 Fabrizio Di Vittorio.
+  Copyright (c) 2019-2022 Fabrizio Di Vittorio.
   All rights reserved.
 
 
@@ -114,10 +114,13 @@ extern const KeyboardLayout FrenchLayout;
 /** @brief Belgian keyboard layout */
 extern const KeyboardLayout BelgianLayout;
 
+/** @brief Norwegian keyboard layout */
+extern const KeyboardLayout NorwegianLayout;
+
 
 struct SupportedLayouts {
 
-  static constexpr int LAYOUTSCOUNT = 7;
+  static constexpr int LAYOUTSCOUNT = 8;
 
   static int count()               { return LAYOUTSCOUNT; }
 
@@ -130,6 +133,7 @@ struct SupportedLayouts {
         SpanishLayout.desc,
         FrenchLayout.desc,
         BelgianLayout.desc,
+        NorwegianLayout.desc,
     };
     return NAMES;
   }
@@ -143,6 +147,7 @@ struct SupportedLayouts {
         SpanishLayout.name,
         FrenchLayout.name,
         BelgianLayout.name,
+        NorwegianLayout.name,
     };
     return SNAMES;
   }
@@ -156,6 +161,7 @@ struct SupportedLayouts {
         &SpanishLayout,
         &FrenchLayout,
         &BelgianLayout,
+        &NorwegianLayout,
     };
     return LAYOUTS;
   }
