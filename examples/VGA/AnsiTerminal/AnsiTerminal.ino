@@ -37,6 +37,8 @@
 fabgl::BitmappedDisplayController * DisplayController;
 fabgl::PS2Controller                PS2Controller;
 fabgl::Terminal                     Terminal;
+fabgl::SerialPort                   SerialPort;
+fabgl::SerialPortTerminalConnector  SerialPortTerminalConnector;
 
 
 
@@ -58,19 +60,21 @@ fabgl::Terminal                     Terminal;
 #define UART_STX 2
 
 // RTS/CTS hardware flow gpios
-#define RTS      13
-#define CTS      35
+#define UART_RTS 13
+#define UART_CTS 35
 
-///* prev conf
-#define RESET_PIN 12
-#define RESET_PIN_ACTIVE 1
-#define USERESETPIN 1
+// settings reset control
+/* for old WROOM-32 boards
+#define RESET_PIN        12
+#define RESET_PIN_ACTIVE  1   // 0 = reset when low, 1 = reset when high
+#define USERESETPIN       1   // 1 = reset enabled
 //*/
-/*
-#define RESET_PIN 39
-#define RESET_PIN_ACTIVE 0
-#define USERESETPIN 0
-//*/
+#define RESET_PIN        39
+#define RESET_PIN_ACTIVE  0   // 0 = reset when low, 1 = reset when high
+#define USERESETPIN       0   // 1 = reset enabled
+
+
+#define SHOWBREAKS        0
 
 
 
@@ -80,7 +84,9 @@ fabgl::Terminal                     Terminal;
 
 void setup()
 {
-  //Serial.begin(115200); delay(500); Serial.write("\n\nReset\n\n"); // DEBUG ONLY
+  #if FABGLIB_TERMINAL_DEBUG_REPORT
+  Serial.begin(115200); delay(500); Serial.write("\n\nReset\n\n"); // DEBUG ONLY
+  #endif
 
   disableCore0WDT();
   delay(100); // experienced crashes without this delay!
@@ -109,9 +115,11 @@ void setup()
 
   ConfDialogApp::setupDisplay();
 
-  ConfDialogApp::loadConfiguration();  
-
-  //Terminal.setLogStream(Serial);  // debug only
+  ConfDialogApp::loadConfiguration();
+  
+  #if FABGLIB_TERMINAL_DEBUG_REPORT
+  Terminal.setLogStream(Serial);  // debug only
+  #endif
 
   Terminal.clear();
   Terminal.enableCursor(true);
@@ -126,7 +134,7 @@ void setup()
     //Terminal.printf("Mouse              : %s\r\n", PS2Controller.mouse()->isMouseAvailable() ? "Yes" : "No");
     Terminal.printf("Terminal Type      : %s\r\n", SupportedTerminals::names()[(int)ConfDialogApp::getTermType()]);
     //Terminal.printf("Free Memory        : %d bytes\r\n", heap_caps_get_free_size(MALLOC_CAP_32BIT));
-    if (ConfDialogApp::getSerCtl() == SERCTL_ENABLED)
+    if (ConfDialogApp::getSerCtl())
       Terminal.printf("Serial Port        : USB RX-Pin[%d] TX-Pin[%d]\r\n", UART_URX, UART_UTX);
     else
       Terminal.printf("Serial Port        : Serial RX-Pin[%d] TX-Pin[%d]\r\n", UART_SRX, UART_STX);
@@ -140,6 +148,8 @@ void setup()
   // onVirtualKey is triggered whenever a key is pressed or released
   Terminal.onVirtualKeyItem = [&](VirtualKeyItem * vkItem) {
     if (vkItem->vk == VirtualKey::VK_F12) {
+      // CTRL ALT F12 -> show reboot dialog
+      // F12          -> show configuration dialog
       if (vkItem->CTRL && (vkItem->LALT || vkItem->RALT)) {
         Terminal.deactivate();
         preferences.clear();
@@ -149,7 +159,8 @@ void setup()
       } else if (!vkItem->CTRL && !vkItem->LALT && !vkItem->RALT && !vkItem->down) {
         // releasing F12 key to open configuration dialog
         Terminal.deactivate();
-        PS2Controller.mouse()->emptyQueue();  // avoid previous mouse movements to be showed on UI
+        if (PS2Controller.mouse())
+          PS2Controller.mouse()->emptyQueue();  // avoid previous mouse movements to be showed on UI
         auto dlgApp = new ConfDialogApp;
         dlgApp->run(DisplayController);
         auto progToInstall = dlgApp->progToInstall;
@@ -161,6 +172,13 @@ void setup()
           installProgram(progToInstall);
         vkItem->vk = VirtualKey::VK_NONE;
       }
+    } else if (vkItem->vk == VirtualKey::VK_BREAK && !vkItem->down) {
+      // BREAK (CTRL PAUSE) -> short break (TX low for 3.5 s)
+      // SHIFT BREAK (SHIFT CTRL PAUSE) -> long break (TX low for 0.233 ms)
+      SerialPort.sendBreak(true);
+      vTaskDelay((vkItem->SHIFT ? 3500 : 233) / portTICK_PERIOD_MS);
+      SerialPort.sendBreak(false);
+      vkItem->vk = VirtualKey::VK_NONE;
     }
   };
 
@@ -181,6 +199,15 @@ void setup()
 
 void loop()
 {
+  #if SHOWBREAKS
+  if (SerialPort.breakDetected()) {
+    Terminal.printf("BREAK\r\n");
+  }
+  vTaskDelay(50);
+  #else
+
   // the job is done using UART interrupts
   vTaskDelete(NULL);
+
+  #endif
 }

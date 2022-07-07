@@ -38,17 +38,63 @@ Preferences preferences;
 
 
 #define TERMVERSION_MAJ 1
-#define TERMVERSION_MIN 4
+#define TERMVERSION_MIN 6
 
 
-static const char * BAUDRATES_STR[] = { "110", "300", "600", "1200", "2400", "4800", "9600", "14400", "19200", "38400", "57600", "115200", "128000", "230400", "250000", "256000", "500000", "1000000", "2000000" };
-static const int    BAUDRATES_INT[] = { 110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 57600, 115200, 128000, 230400, 250000, 256000, 500000, 1000000, 2000000 };
-constexpr int       BAUDRATES_COUNT = sizeof(BAUDRATES_INT) / sizeof(int);
+static const char * BAUDRATES_STR[]  = { "110",
+                                         "150",
+                                         "300",
+                                         "600",
+                                         "1200",
+                                         "2400",
+                                         "4800",
+                                         "9600",
+                                         "14400",
+                                         "19200",
+                                         "38400",
+                                         "57600",
+                                         "76800",
+                                         "115200",
+                                         "128000",
+                                         "230400",
+                                         "250000",
+                                         "256000",
+                                         "500000",
+                                         "1000000",
+                                         "2000000" };
+static const int    BAUDRATES_INT[]  = { 110,
+                                         150,
+                                         300,
+                                         600,
+                                         1200,
+                                         2400,
+                                         4800,
+                                         9600,
+                                         14400,
+                                         19200,
+                                         38400,
+                                         57600,
+                                         76800,
+                                         115200,
+                                         128000,
+                                         230400,
+                                         250000,
+                                         256000,
+                                         500000,
+                                         1000000,
+                                         2000000 };
+constexpr int       BAUDRATES_COUNT  = sizeof(BAUDRATES_INT) / sizeof(int);
 
-static const char * DATALENS_STR[]  = { "5 bits", "6 bits", "7 bits", "8 bits" };
-static const char * PARITY_STR[]    = { "None", "Even", "Odd" };
-static const char * STOPBITS_STR[]  = { "1 bit", "1.5 bits", "2 bits" };
-static const char * FLOWCTRL_STR[]  = { "None", "XON/XOFF", "RTS/CTS", "Combi" };
+static const char * DATALENS_STR[]   = { "5 bits", "6 bits", "7 bits", "8 bits" };
+static const int    DATALENS_INT[]   = { 5, 6, 7, 8 };
+
+static const char * PARITY_STR[]     = { "None", "Even", "Odd" };
+static const char   PARITY_CHAR[]    = { 'N', 'E', 'O' };
+
+static const char * STOPBITS_STR[]   = { "1", "1.5", "2", "3" };
+static const float  STOPBITS_FLOAT[] = { 1.0, 1.5, 2.0, 3.0 };
+
+static const char * FLOWCTRL_STR[]   = { "None", "XON/XOFF", "RTS/CTS", "Combi" };
 
 constexpr int RESOLUTION_DEFAULT           = 5;
 static const char * RESOLUTIONS_STR[]      = { "1280x768, B&W",           // 0
@@ -130,9 +176,6 @@ constexpr int       BOOTINFO_DISABLED     = 0;
 constexpr int       BOOTINFO_ENABLED      = 1;
 constexpr int       BOOTINFO_TEMPDISABLED = 2;
 
-constexpr int       SERCTL_DISABLED     = 0;
-constexpr int       SERCTL_ENABLED      = 1;
-
 // preferences keys
 static const char * PREF_VERMAJ         = "VerMaj";
 static const char * PREF_VERMIN         = "VerMin";
@@ -186,7 +229,7 @@ struct ConfDialogApp : public uiApp {
 
     rootWindow()->frameProps().fillBackground = false;
 
-    frame = new uiFrame(rootWindow(), "Terminal Configuration", UIWINDOW_PARENTCENTER, Size(380, 275), true, STYLE_FRAME);
+    frame = new uiFrame(rootWindow(), "Terminal Configuration", UIWINDOW_PARENTCENTER, Size(380, 287), true, STYLE_FRAME);
     frameRect = frame->rect(fabgl::uiOrigin::Screen);
 
     frame->frameProps().resizeable        = false;
@@ -215,11 +258,12 @@ struct ConfDialogApp : public uiApp {
     int y = 19;
 
     // little help
-    new uiStaticLabel(frame, "Press TAB key to move between fields", Point(100, y), true, STYLE_LABELHELP);
-    new uiStaticLabel(frame, "Outside this dialog press CTRL-ALT-F12 to reset settings", Point(52, y + 12), true, STYLE_LABELHELP);
+    new uiStaticLabel(frame, "FabGL Terminal - (c) 2019-2022 by Fabrizio Di Vittorio - fabgl.com", Point(30, y), true, STYLE_LABELHELP2);
+    new uiStaticLabel(frame, "Press TAB key to move between fields", Point(100, y + 12), true, STYLE_LABELHELP);
+    new uiStaticLabel(frame, "Outside this dialog press CTRL-ALT-F12 to reset settings", Point(52, y + 24), true, STYLE_LABELHELP);
 
 
-    y += 34;
+    y += 46;
 
     // select terminal emulation combobox
     new uiStaticLabel(frame, "Terminal Type", Point(10,  y), true, STYLE_STATICLABEL);
@@ -267,8 +311,8 @@ struct ConfDialogApp : public uiApp {
     // stop bits
     new uiStaticLabel(frame, "Stop Bits", Point(230,  y), true, STYLE_STATICLABEL);
     stopBitsComboBox = new uiComboBox(frame, Point(230, y + 12), Size(55, 20), 50, true, STYLE_COMBOBOX);
-    stopBitsComboBox->items().append(STOPBITS_STR, 3);
-    stopBitsComboBox->selectItem(getStopBitsIndex() - 1);
+    stopBitsComboBox->items().append(STOPBITS_STR, 4);
+    stopBitsComboBox->selectItem(getStopBitsIndex());
 
     // flow control
     new uiStaticLabel(frame, "Flow Control", Point(300,  y), true, STYLE_STATICLABEL);
@@ -316,7 +360,7 @@ struct ConfDialogApp : public uiApp {
     // set control to usb-serial
     new uiStaticLabel(frame, "USBSerial", Point(10, y), true, STYLE_STATICLABEL);
     serctlCheckBox = new uiCheckBox(frame, Point(80, y - 2), Size(16, 16), uiCheckBoxKind::CheckBox, true, STYLE_CHECKBOX);
-    serctlCheckBox->setChecked(getSerCtl() == SERCTL_ENABLED);
+    serctlCheckBox->setChecked(getSerCtl());
 
     y += 24;
 
@@ -353,22 +397,22 @@ struct ConfDialogApp : public uiApp {
 
     // RTS Status (clickable)
     RTSStatus = new uiLabel(frame, "RTS", Point(300, 210), Size(30, 15), true, STYLE_LABELBUTTON);
-    setRTSStatus(Terminal.RTSStatus());
+    setRTSStatus(SerialPort.RTSStatus());
     RTSStatus->onClick = [&]() {
-      bool newval = !Terminal.RTSStatus();
-      Terminal.setRTSStatus(newval);
+      bool newval = !SerialPort.RTSStatus();
+      SerialPort.setRTSStatus(newval);
       setRTSStatus(newval);
     };
 
     // CTS Status
     CTSStatus = new uiLabel(frame, "CTS", Point(335, 210), Size(30, 15), true, STYLE_LABELBUTTON);
-    lastCTSStatus = Terminal.CTSStatus();
+    lastCTSStatus = SerialPort.CTSStatus();
     setCTSStatus(lastCTSStatus);
 
     // timer
     frame->onTimer = [&](uiTimerHandle) {
       // monitor CTS status
-      if (Terminal.CTSStatus() != lastCTSStatus) {
+      if (SerialPort.CTSStatus() != lastCTSStatus) {
         lastCTSStatus = !lastCTSStatus;
         setCTSStatus(lastCTSStatus);
       }
@@ -400,14 +444,15 @@ struct ConfDialogApp : public uiApp {
                   fontComboBox->selectedItem()       != getFontIndex()       ||
                   columnsComboBox->selectedItem()    != getColumnsIndex()    ||
                   rowsComboBox->selectedItem()       != getRowsIndex()       ||
-                  bgColorComboBox->selectedColor()   != getBGColor();
+                  bgColorComboBox->selectedColor()   != getBGColor()         ||
+                  serctlCheckBox->checked()          != getSerCtl();
 
     preferences.putInt(PREF_TERMTYPE, termComboBox->selectedItem());
     preferences.putInt(PREF_KBDLAYOUT, kbdComboBox->selectedItem());
     preferences.putInt(PREF_BAUDRATE, baudRateComboBox->selectedItem());
     preferences.putInt(PREF_DATALEN, datalenComboBox->selectedItem());
     preferences.putInt(PREF_PARITY, parityComboBox->selectedItem());
-    preferences.putInt(PREF_STOPBITS, stopBitsComboBox->selectedItem() + 1);
+    preferences.putInt(PREF_STOPBITS, stopBitsComboBox->selectedItem());
     preferences.putInt(PREF_FLOWCTRL, flowCtrlComboBox->selectedItem());
     preferences.putInt(PREF_BGCOLOR, (int)bgColorComboBox->selectedColor());
     preferences.putInt(PREF_FGCOLOR, (int)fgColorComboBox->selectedColor());
@@ -416,10 +461,12 @@ struct ConfDialogApp : public uiApp {
     preferences.putInt(PREF_COLUMNS, columnsComboBox->selectedItem());
     preferences.putInt(PREF_ROWS, rowsComboBox->selectedItem());
     preferences.putInt(PREF_BOOTINFO, infoCheckBox->checked() ? BOOTINFO_ENABLED : BOOTINFO_DISABLED);
-    preferences.putInt(PREF_SERCTL, serctlCheckBox->checked() ? SERCTL_ENABLED : SERCTL_DISABLED);
-
-    if (reboot)
+    preferences.putInt(PREF_SERCTL, serctlCheckBox->checked());
+    
+    if (reboot) {
+      preferences.end();
       performReboot(); // no return from here!
+    }
 
     loadConfiguration();
   }
@@ -450,7 +497,7 @@ struct ConfDialogApp : public uiApp {
 
 
   static int getBaudRateIndex() {
-    return preferences.getInt(PREF_BAUDRATE, 11);              // default 11 = 115200
+    return preferences.getInt(PREF_BAUDRATE, 13);              // default 13 = 115200
   }
 
 
@@ -465,7 +512,7 @@ struct ConfDialogApp : public uiApp {
 
 
   static int getStopBitsIndex() {
-    return preferences.getInt(PREF_STOPBITS, 1);               // default 1 = 1 stop bit
+    return preferences.getInt(PREF_STOPBITS, 0);               // default 0 = 1 stop bit
   }
 
 
@@ -515,16 +562,16 @@ struct ConfDialogApp : public uiApp {
 
 
   static int getSerCtl() {
-    return preferences.getInt(PREF_SERCTL, SERCTL_DISABLED);
+    return preferences.getInt(PREF_SERCTL, false);
   }
 
 
   static char const * getSerParamStr() {
     static char outstr[32];
-    snprintf(outstr, sizeof(outstr), "%s,%c%c%c flow=%s", BAUDRATES_STR[getBaudRateIndex()],
+    snprintf(outstr, sizeof(outstr), "%s,%c%c%s flow=%s", BAUDRATES_STR[getBaudRateIndex()],
                                                           DATALENS_STR[getDataLenIndex()][0],
                                                           PARITY_STR[getParityIndex()][0],
-                                                          STOPBITS_STR[getStopBitsIndex() - 1][0],
+                                                          STOPBITS_STR[getStopBitsIndex()],
                                                           FLOWCTRL_STR[(int)getFlowCtrl()]);
     return outstr;
   }
@@ -571,6 +618,8 @@ struct ConfDialogApp : public uiApp {
     auto cols = COLUMNS_INT[getColumnsIndex()];
     auto rows = ROWS_INT[getRowsIndex()];
     Terminal.begin(DisplayController, (cols ? cols : -1), (rows ? rows : -1));
+    // connects SerialPort with Terminal
+    SerialPortTerminalConnector.connect(&SerialPort, &Terminal);
     // this is required when terminal columns and rows do not cover entire screen
     Terminal.canvas()->setBrushColor(getBGColor());
     Terminal.canvas()->clear();
@@ -589,11 +638,13 @@ struct ConfDialogApp : public uiApp {
     Terminal.keyboard()->setLayout(SupportedLayouts::layouts()[getKbdLayoutIndex()]);
     Terminal.setBackgroundColor(getBGColor());
     Terminal.setForegroundColor(getFGColor());
+    
     // configure serial port
-    bool serctl = (getSerCtl() == SERCTL_ENABLED);
-    auto rxPin = serctl ? UART_URX : UART_SRX;
-    auto txPin = serctl ? UART_UTX : UART_STX;
-    Terminal.connectSerialPort(BAUDRATES_INT[getBaudRateIndex()], fabgl::UARTConf(getParityIndex(), getDataLenIndex(), getStopBitsIndex()), rxPin, txPin, getFlowCtrl(), false, RTS, CTS);
+    bool serctl = getSerCtl();
+    auto rxPin  = serctl ? UART_URX : UART_SRX;
+    auto txPin  = serctl ? UART_UTX : UART_STX;
+    SerialPort.setSignals(rxPin, txPin, UART_RTS, UART_CTS);
+    SerialPort.setup(2, BAUDRATES_INT[getBaudRateIndex()], DATALENS_INT[getDataLenIndex()], PARITY_CHAR[getParityIndex()], STOPBITS_FLOAT[getStopBitsIndex()], getFlowCtrl());
   }
 
 

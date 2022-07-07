@@ -35,11 +35,6 @@
  */
 
 
-#ifdef ARDUINO
-  #include "Arduino.h"
-  #include "Stream.h"
-#endif
-
 #include <ctype.h>
 #include <string.h>
 
@@ -47,6 +42,11 @@
 #include "freertos/task.h"
 #include "freertos/timers.h"
 #include "freertos/semphr.h"
+
+#ifdef ARDUINO
+  #include "Arduino.h"
+  #include "Stream.h"
+#endif
 
 #include "fabglconf.h"
 #include "canvas.h"
@@ -700,17 +700,6 @@ namespace fabgl {
 
 
 
-/** \ingroup Enumerations
- * @brief This enum defines various serial port flow control methods
- */
-enum class FlowControl {
-  None,              /**< No flow control */
-  Software,          /**< Software flow control. Use XON and XOFF control characters */
-  Hardware,          /**< Hardware flow control. Use RTS and CTS signals */
-  Hardsoft,          /**< Hardware/software flow control. Use XON/XOFF and RTS/CTS */
-};
-
-
 // used by saveCursorState / restoreCursorState
 struct TerminalCursorState {
   TerminalCursorState *   next;
@@ -924,31 +913,6 @@ struct Stream : public Print{
  *       }
  *     }
  *
- *
- * Example 2:
- *
- *     fabgl::VGAController VGAController;
- *     fabgl::PS2Controller PS2Controller;
- *     fabgl::Terminal      Terminal;
- *
- *     // Setup 80x25 columns terminal using UART2 to communicate with the server,
- *     // VGA to display output and PS2 device as keyboard input
- *     void setup() {
- *       Serial2.begin(115200);
- *
- *       PS2Controller.begin(PS2Preset::KeyboardPort0);
- *
- *       VGAController.begin();
- *       VGAController.setResolution(VGA_640x350_70HzAlt1);
- *
- *       Terminal.begin(&VGAController);
- *       Terminal.connectSerialPort(Serial2);
- *       Terminal.enableCursor(true);
- *     }
- *
- *     void loop() {
- *       Terminal.pollSerialPort();
- *     }
  */
 class Terminal : public Stream {
 
@@ -980,87 +944,16 @@ public:
   void end();
 
   /**
-   * @brief Connects a remote host using the specified serial port.
+   * @brief Connect keyboard to the terminal
    *
-   * When serial port is set, the typed keys on PS/2 keyboard are encoded
-   * as ANSI/VT100 codes and then sent to the specified serial port.<br>
-   * Also replies to terminal queries like terminal identification, cursor position, etc.. will be
-   * sent to the serial port.<br>
-   * Call Terminal.pollSerialPort() to send codes from serial port to the display.
-   *
-   * This method requires continous polling of the serial port and is very inefficient. Use the second overload
-   * to directly handle serial port using interrupts.
-   *
-   * @param serialPort The serial port to use.
-   * @param autoXONXOFF If true uses software flow control (XON/XOFF).
-   *
-   * Example:
-   *
-   *     Terminal.begin(&VGAController);
-   *     Terminal.connectSerialPort(Serial);
+   * Creates a task that read Keyboard scancodes and generates emulated terminal codes.
    */
-  #ifdef ARDUINO
-  void connectSerialPort(HardwareSerial & serialPort, bool autoXONXOFF = true);
-  #endif
-
-  /**
-   * @brief Connects a remote host using UART
-   *
-   * When serial port is set, the typed keys on PS/2 keyboard are encoded
-   * as ANSI/VT100 codes and then sent to the specified serial port.<br>
-   * Also replies to terminal queries like terminal identification, cursor position, etc.. will be
-   * sent to the serial port.<br>
-   * This method setups the UART2 with specified parameters. Received characters are handlded using interrupts freeing main
-   * loop to do something other.<br>
-   * <br>
-   * This is the preferred way to connect the Terminal with a serial port.<br>
-   * You may call connectSerialPort whenever a parameters needs to be changed (except for rx and tx pins).
-   *
-   * @param baud Baud rate.
-   * @param config Defines word length, parity and stop bits. Example: SERIAL_8N1.
-   * @param rxPin UART RX pin GPIO number.
-   * @param txPin UART TX pin GPIO number.
-   * @param flowControl Flow control.
-   * @param inverted If true RX and TX signals are inverted.
-   * @param rtsPin RTS signal GPIO number (-1 = not used)
-   * @param ctsPin CTS signal GPIO number (-1 = not used)
-   *
-   * Example:
-   *
-   *     Terminal.begin(&DisplayController);
-   *     Terminal.connectSerialPort(115200, SERIAL_8N1, 34, 2, FlowControl::Software);
-   */
-  void connectSerialPort(uint32_t baud, uint32_t config, int rxPin, int txPin, FlowControl flowControl, bool inverted = false, int rtsPin = -1, int ctsPin = -1);
-
-  /**
-   * @brief Pools the serial port for incoming data.
-   *
-   * This method needs to be called in the application main loop to check if new data
-   * is coming from the current serial port (specified using Terminal.connectSerialPort).
-   *
-   * Example:
-   *
-   *     void loop() {
-   *       Terminal.pollSerialPort();
-   *     }
-   */
-  #ifdef ARDUINO
-  void pollSerialPort();
-  #endif
-
-  /**
-   * @brief Disables/Enables serial port RX
-   *
-   * This method temporarily disables RX from serial port, discarding all incoming data.
-   *
-   * @param value If True RX is disabled. If False RX is re-enabled.
-   */
-  void disableSerialPortRX(bool value)         { m_uartRXEnabled = !value; }
-
+  void connectKeyboard();
+  
   /**
    * @brief Permits using of terminal locally.
    *
-   * Create a queue where to put ANSI keys decoded from keyboard or as replies to terminal queries.<br>
+   * Creates a queue where to put ANSI keys decoded from keyboard or as replies to terminal queries.<br>
    * This queue is accessible with read(), available() and peek() methods.
    *
    * Example:
@@ -1224,9 +1117,11 @@ public:
   /**
    * @brief Determines number of codes that the display input queue can still accept.
    *
+   * @param fromISR If true this call comes from an ISR. In this case return value is 1 if queue is available for write, 0 otherwise.
+   *
    * @return The size (in characters) of remaining space in the display queue.
    */
-  int availableForWrite();
+  int availableForWrite(bool fromISR = false);
 
   /**
    * @brief Sets the terminal type to emulate
@@ -1330,13 +1225,21 @@ public:
   /**
    * @brief Sends a single code to the display.
    *
-   * Code can be only of the ANSI/VT codes or ASCII characters.
-   *
    * @param c The code to send.
    *
    * @return The number of codes written.
    */
   size_t write(uint8_t c);
+  
+  /**
+   * @brief Sends a single code to the display.
+   *
+   * @param c The code to send.
+   * @param fromISR True is this call comes from an ISR.
+   *
+   * @return The number of codes written.
+   */
+  void write(uint8_t c, bool fromISR);
 
   using Print::write;
 
@@ -1420,49 +1323,6 @@ public:
    */
   SoundGenerator * soundGenerator();
 
-  /**
-   * @brief Reports whether TX is active
-   *
-   * @return True if XOFF has been sent or RTS is not asserted
-   */
-  bool XOFFStatus()                    { return m_sentXOFF; }
-
-  /**
-   * @brief Reports current RTS signal status
-   *
-   * @return True if RTS is asserted (low voltage, terminal is ready to receive data)
-   */
-  bool RTSStatus()                     { return m_RTSStatus; }
-
-  /**
-   * @brief Sets RTS signal status
-   *
-   * RTS signal is handled automatically when flow control has been setup
-   *
-   * @param value True to assert RTS (low voltage)
-   */
-  void setRTSStatus(bool value);
-
-  /**
-   * @brief Reports current CTS signal status
-   *
-   * @return True if RTS is asserted (low voltage, host is ready to receive data)
-   */
-  bool CTSStatus()                     { return m_ctsPin != GPIO_UNUSED ? gpio_get_level(m_ctsPin) == 0 : false; }
-
-  /**
-   * @brief Allows/disallows host to send data
-   *
-   * @param enableRX If True host can send data (sent XON and/or RTS asserted)
-   */
-  void flowControl(bool enableRX);
-
-  /**
-   * @brief Checks whether host can receive data
-   *
-   * @return True if host can receive data. False if host sent XOFF or CTS is not asserted.
-   */
-  bool flowControl();
 
 
   //// Delegates ////
@@ -1492,6 +1352,29 @@ public:
    * receives "ESC_#mycommand$", the delegate receives "mycommand" string.
    */
   Delegate<char const *> onUserSequence;
+  
+  
+  /**
+   * @brief Delegate called whenever the terminal need to send a character
+   *
+   * Parameter contains the character to send
+   */
+  Delegate<uint8_t> onSend;
+  
+  
+  /**
+   * @brief Delegate called whenever the terminal receives a character
+   *
+   * Parameter contains the character received
+   */
+  Delegate<uint8_t> onReceive;
+  
+  /**
+   * @brief Delegate called whenever the terminal is ready to send
+   *
+   * Parameter contains a reference to bool. It can be changed to False if received is not ready.
+   */
+  Delegate<bool *> onReadyToSend;
 
 
 
@@ -1594,8 +1477,6 @@ private:
   void blinkCursor();
   bool int_enableCursor(bool value);
 
-  static void IRAM_ATTR uart_isr(void *arg);
-
   uint8_t getNextCode(bool processCtrlCodes);
 
   bool setChar(uint8_t c);
@@ -1636,12 +1517,6 @@ private:
   bool addToInputQueue(uint8_t c, bool fromISR);
   bool insertToInputQueue(uint8_t c, bool fromISR);
 
-  void write(uint8_t c, bool fromISR);
-
-  //static void uart_on_apb_change(void * arg, apb_change_ev_t ev_type, uint32_t old_apb, uint32_t new_apb);
-
-  void uartCheckInputQueueForFlowControl();
-
   void enableFabGLSequences(bool value);
 
   void int_setTerminalType(TermType value);
@@ -1656,7 +1531,7 @@ private:
   void freeSprites();
 
   uint32_t makeGlyphItem(uint8_t c, GlyphOptions * glyphOptions, Color * newForegroundColor);
-
+  
   // indicates which is the active terminal when there are multiple instances of Terminal
   static Terminal *  s_activeTerminal;
 
@@ -1725,21 +1600,6 @@ private:
   int                m_maxColumns;
   int                m_maxRows;
 
-  #ifdef ARDUINO
-  // optional serial port
-  // data from serial port is processed and displayed
-  // keys from keyboard are processed and sent to serial port
-  HardwareSerial *          m_serialPort;
-  #endif
-
-  // optional serial port (directly handled)
-  // data from serial port is processed and displayed
-  // keys from keyboard are processed and sent to serial port
-  volatile bool             m_uart;
-
-  // if false all inputs from UART are discarded
-  volatile bool             m_uartRXEnabled;
-
   // contains characters to be processed (from write() calls)
   volatile QueueHandle_t    m_inputQueue;
 
@@ -1751,15 +1611,6 @@ private:
 
   // a reset has been requested
   bool                      m_resetRequested;
-
-  volatile FlowControl      m_flowControl;
-  volatile bool             m_sentXOFF;       // true if XOFF has been sent or RTS is disabled (high)
-  volatile bool             m_recvXOFF;       // true if XOFF has been received
-
-  // hardware flow pins
-  gpio_num_t                m_rtsPin;
-  gpio_num_t                m_ctsPin;
-  bool                      m_RTSStatus;      // true = asserted (low)
 
   // used to implement m_emuState.keyAutorepeat
   VirtualKey                m_lastPressedKey;

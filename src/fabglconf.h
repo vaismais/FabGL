@@ -152,6 +152,7 @@
 
 
 // debug options
+#define FABGLIB_TERMINAL_DEBUG_REPORT                0  // this must be enabled to make below settings active
 #define FABGLIB_TERMINAL_DEBUG_REPORT_IN_CODES       0
 #define FABGLIB_TERMINAL_DEBUG_REPORT_INQUEUE_CODES  0  // use as alternative to FABGLIB_TERMINAL_DEBUG_REPORT_IN_CODES when write() is called inside isr
 #define FABGLIB_TERMINAL_DEBUG_REPORT_OUT_CODES      0
@@ -329,6 +330,9 @@
 
 /** Modeline for OLED 128x32 */
 #define OLED_128x32 "\"OLED_128x32\" 128 32"
+
+/** Modeline for TFT 240x135 */
+#define TFT_135x240 "\"TFT_135x240\" 135 240"
 
 /** Modeline for TFT 240x240 */
 #define TFT_240x240 "\"TFT_240x240\" 240 240"
